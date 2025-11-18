@@ -1,0 +1,37 @@
+/**
+ * Admin styles for Book Your Stay
+ */
+
+.bys-admin {
+    max-width: 900px;
+}
+
+.bys-settings-form {
+    background: #fff;
+    padding: 20px;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.bys-settings-form h2 {
+    margin-top: 30px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e0e0e0;
+    font-size: 18px;
+}
+
+.bys-shortcode-wrapper {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.bys-shortcode-wrapper input {
+    flex: 1;
+}
+
+.bys-copy-btn {
+    white-space: nowrap;
+}
+
