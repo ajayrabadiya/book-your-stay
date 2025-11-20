@@ -85,10 +85,15 @@ class BYS_Admin {
         update_option('bys_property_id', $property_id);
         
         // Save API settings
-        $client_id = isset($_POST['client_id']) ? sanitize_text_field($_POST['client_id']) : '';
+        // Use stripslashes to handle WordPress magic quotes, then sanitize
+        $client_id = isset($_POST['client_id']) ? sanitize_text_field(stripslashes($_POST['client_id'])) : '';
+        // Remove any whitespace that might have been added
+        $client_id = trim($client_id);
         update_option('bys_client_id', $client_id);
         
-        $client_secret = isset($_POST['client_secret']) ? sanitize_text_field($_POST['client_secret']) : '';
+        $client_secret = isset($_POST['client_secret']) ? sanitize_text_field(stripslashes($_POST['client_secret'])) : '';
+        // Remove any whitespace that might have been added
+        $client_secret = trim($client_secret);
         update_option('bys_client_secret', $client_secret);
         
         $environment = isset($_POST['environment']) ? sanitize_text_field($_POST['environment']) : 'uat';
@@ -162,7 +167,24 @@ class BYS_Admin {
         $token = $oauth->get_access_token();
         
         if ($token === false) {
-            wp_send_json_error(array('message' => __('Failed to get access token. Please check your credentials.', 'book-your-stay')));
+            // Get detailed error message if available
+            $error_message = get_option('bys_last_oauth_error', '');
+            $environment = get_option('bys_environment', 'uat');
+            
+            if (!empty($error_message)) {
+                $message = __('Failed to get access token: ', 'book-your-stay') . $error_message;
+                
+                // Add helpful hint if invalid_client error
+                if (strpos($error_message, 'invalid_client') !== false) {
+                    $message .= ' ' . sprintf(
+                        __('Please verify: 1) Your credentials match the selected environment (%s), 2) Client ID and Secret are correct, 3) No extra spaces or characters.', 'book-your-stay'),
+                        strtoupper($environment)
+                    );
+                }
+            } else {
+                $message = __('Failed to get access token. Please check your credentials.', 'book-your-stay');
+            }
+            wp_send_json_error(array('message' => $message));
         }
         
         $token_info = $oauth->get_token_info();

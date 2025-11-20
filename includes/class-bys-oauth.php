@@ -54,8 +54,13 @@ class BYS_OAuth {
      */
     private function fetch_new_token() {
         $environment = get_option('bys_environment', 'uat');
+        // Get credentials and ensure they're clean (no slashes, no extra encoding)
         $client_id = get_option('bys_client_id', '');
         $client_secret = get_option('bys_client_secret', '');
+        
+        // Remove any WordPress-added slashes and trim
+        $client_id = trim(stripslashes($client_id));
+        $client_secret = trim(stripslashes($client_secret));
         
         if (empty($client_id) || empty($client_secret)) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
@@ -69,50 +74,172 @@ class BYS_OAuth {
             ? 'https://id.shrglobal.com/connect/token'
             : 'https://iduat.shrglobal.com/connect/token';
         
-        // Prepare request
+        // SHR API requires credentials in request body (form-encoded)
+        // Remove only truly problematic characters (null bytes, control chars) but keep valid OAuth chars like underscores
+        $client_id = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $client_id);
+        $client_secret = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $client_secret);
+        
+        // Validate credentials are not empty after cleaning
+        if (empty($client_id) || empty($client_secret)) {
+            $error_message = 'Client ID or Secret is empty after cleaning. Please check for hidden characters.';
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay OAuth Error: ' . $error_message);
+            }
+            update_option('bys_last_oauth_error', $error_message);
+            return false;
+        }
+        
+        $scope = 'wsapi.guestrequests.read wsapi.shop.ratecalendar';
+        
+        // Use http_build_query which properly handles OAuth 2.0 form encoding
+        // This ensures proper encoding without over-encoding valid characters like underscores
         $body = array(
             'client_id' => $client_id,
             'client_secret' => $client_secret,
-            'grant_type' => 'client_credentials',
-            'scope' => 'wsapi.guestrequests.read wsapi.shop.ratecalendar'
+            'grant_type' => 'client_credentials'
         );
         
         $args = array(
             'method' => 'POST',
             'headers' => array(
-                'Content-Type' => 'application/x-www-form-urlencoded'
+                'Content-Type' => 'application/x-www-form-urlencoded',
+                'Accept' => 'application/json'
             ),
             'body' => http_build_query($body),
-            'timeout' => 30
+            'timeout' => 30,
+            'sslverify' => true,
+            'redirection' => 0,
+            'blocking' => true
         );
+        
+        // Debug: Log request details if WP_DEBUG is enabled
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('Book Your Stay OAuth Request: Endpoint=' . $token_endpoint . ', Client ID length=' . strlen($client_id) . ', Body=' . substr($args['body'], 0, 100) . '...');
+        }
         
         $response = wp_remote_post($token_endpoint, $args);
         
         if (is_wp_error($response)) {
+            $error_message = $response->get_error_message();
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay OAuth Error: ' . $response->get_error_message());
+                error_log('Book Your Stay OAuth Error: ' . $error_message);
             }
+            update_option('bys_last_oauth_error', $error_message);
             return false;
         }
         
         $response_code = wp_remote_retrieve_response_code($response);
         $response_body = wp_remote_retrieve_body($response);
         
+        // Debug: Log response details
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('Book Your Stay OAuth Response: Code=' . $response_code . ', Body=' . substr($response_body, 0, 200));
+        }
+        
+        // If request fails with invalid_client, try with scope
         if ($response_code !== 200) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay OAuth Error: HTTP ' . $response_code . ' - ' . $response_body);
+            $error_data = json_decode($response_body, true);
+            $is_invalid_client = (isset($error_data['error']) && $error_data['error'] === 'invalid_client');
+            
+            // Retry with scope if we got invalid_client (might be scope-related)
+            if ($is_invalid_client || $response_code === 400) {
+                $body['scope'] = $scope;
+                $args['body'] = http_build_query($body);
+                
+                $response = wp_remote_post($token_endpoint, $args);
+                
+                if (is_wp_error($response)) {
+                    $error_message = $response->get_error_message();
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('Book Your Stay OAuth Error (with scope): ' . $error_message);
+                    }
+                    update_option('bys_last_oauth_error', $error_message);
+                    return false;
+                }
+                
+                $response_code = wp_remote_retrieve_response_code($response);
+                $response_body = wp_remote_retrieve_body($response);
             }
+            
+            // If still failing, try Basic Auth as last resort
+            if ($response_code !== 200) {
+                $body_basic = array(
+                    'grant_type' => 'client_credentials',
+                    'scope' => $scope
+                );
+                
+                $args['headers'] = array(
+                    'Content-Type' => 'application/x-www-form-urlencoded',
+                    'Accept' => 'application/json',
+                    'Authorization' => 'Basic ' . base64_encode($client_id . ':' . $client_secret)
+                );
+                $args['body'] = http_build_query($body_basic);
+                
+                $response = wp_remote_post($token_endpoint, $args);
+                
+                if (is_wp_error($response)) {
+                    $error_message = $response->get_error_message();
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('Book Your Stay OAuth Error (Basic Auth): ' . $error_message);
+                    }
+                    update_option('bys_last_oauth_error', $error_message);
+                    return false;
+                }
+                
+                $response_code = wp_remote_retrieve_response_code($response);
+                $response_body = wp_remote_retrieve_body($response);
+            }
+        }
+        
+        if ($response_code !== 200) {
+            // Try to parse error response
+            $error_data = json_decode($response_body, true);
+            $error_message = 'HTTP ' . $response_code;
+            
+            if (is_array($error_data)) {
+                if (isset($error_data['error'])) {
+                    $error_message .= ': ' . $error_data['error'];
+                    if (isset($error_data['error_description'])) {
+                        $error_message .= ' - ' . $error_data['error_description'];
+                    }
+                } elseif (isset($error_data['message'])) {
+                    $error_message .= ': ' . $error_data['message'];
+                } else {
+                    $error_message .= ': ' . $response_body;
+                }
+            } else {
+                $error_message .= ': ' . $response_body;
+            }
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay OAuth Error: ' . $error_message);
+            }
+            // Store error for retrieval
+            update_option('bys_last_oauth_error', $error_message);
             return false;
         }
         
         $data = json_decode($response_body, true);
         
         if (!isset($data['access_token'])) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay OAuth Error: No access token in response');
+            $error_message = 'No access token in response';
+            if (is_array($data) && isset($data['error'])) {
+                $error_message = $data['error'];
+                if (isset($data['error_description'])) {
+                    $error_message .= ': ' . $data['error_description'];
+                }
             }
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay OAuth Error: ' . $error_message . ' - Response: ' . $response_body);
+            }
+            // Store error for retrieval
+            update_option('bys_last_oauth_error', $error_message);
             return false;
         }
+        
+        // Clear any previous errors on success
+        delete_option('bys_last_oauth_error');
         
         $access_token = $data['access_token'];
         $expires_in = isset($data['expires_in']) ? intval($data['expires_in']) : 3600;
@@ -138,8 +265,9 @@ class BYS_OAuth {
      */
     private function refresh_access_token($refresh_token) {
         $environment = get_option('bys_environment', 'uat');
-        $client_id = get_option('bys_client_id', '');
-        $client_secret = get_option('bys_client_secret', '');
+        $client_id = trim(get_option('bys_client_id', ''));
+        $client_secret = trim(get_option('bys_client_secret', ''));
+        $refresh_token = trim($refresh_token);
         
         if (empty($client_id) || empty($client_secret) || empty($refresh_token)) {
             return false;
@@ -150,51 +278,126 @@ class BYS_OAuth {
             ? 'https://id.shrglobal.com/connect/token'
             : 'https://iduat.shrglobal.com/connect/token';
         
-        // Prepare refresh request
+        // SHR API requires credentials in request body (form-encoded)
+        $scope = 'wsapi.guestrequests.read wsapi.shop.ratecalendar';
         $body = array(
             'client_id' => $client_id,
             'client_secret' => $client_secret,
             'grant_type' => 'refresh_token',
-            'refresh_token' => $refresh_token,
-            'scope' => 'wsapi.guestrequests.read wsapi.shop.ratecalendar'
+            'refresh_token' => $refresh_token
         );
+        if (!empty($scope)) {
+            $body['scope'] = $scope;
+        }
         
         $args = array(
             'method' => 'POST',
             'headers' => array(
-                'Content-Type' => 'application/x-www-form-urlencoded'
+                'Content-Type' => 'application/x-www-form-urlencoded',
+                'Accept' => 'application/json'
             ),
             'body' => http_build_query($body),
-            'timeout' => 30
+            'timeout' => 30,
+            'sslverify' => true
         );
         
         $response = wp_remote_post($token_endpoint, $args);
         
         if (is_wp_error($response)) {
+            $error_message = $response->get_error_message();
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay OAuth Refresh Error: ' . $response->get_error_message());
+                error_log('Book Your Stay OAuth Refresh Error: ' . $error_message);
             }
+            // Store error for retrieval
+            update_option('bys_last_oauth_error', $error_message);
             return false;
         }
         
         $response_code = wp_remote_retrieve_response_code($response);
         $response_body = wp_remote_retrieve_body($response);
         
-        if ($response_code !== 200) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay OAuth Refresh Error: HTTP ' . $response_code . ' - ' . $response_body);
+        // If form-encoded fails, try Basic Auth as fallback
+        if ($response_code === 401 || $response_code === 400) {
+            // Retry with Basic Authentication
+            $body_basic = array(
+                'grant_type' => 'refresh_token',
+                'refresh_token' => $refresh_token
+            );
+            if (!empty($scope)) {
+                $body_basic['scope'] = $scope;
             }
+            
+            $args['headers'] = array(
+                'Content-Type' => 'application/x-www-form-urlencoded',
+                'Accept' => 'application/json',
+                'Authorization' => 'Basic ' . base64_encode($client_id . ':' . $client_secret)
+            );
+            $args['body'] = http_build_query($body_basic);
+            
+            $response = wp_remote_post($token_endpoint, $args);
+            
+            if (is_wp_error($response)) {
+                $error_message = $response->get_error_message();
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('Book Your Stay OAuth Refresh Error (Basic Auth retry): ' . $error_message);
+                }
+                update_option('bys_last_oauth_error', $error_message);
+                return false;
+            }
+            
+            $response_code = wp_remote_retrieve_response_code($response);
+            $response_body = wp_remote_retrieve_body($response);
+        }
+        
+        if ($response_code !== 200) {
+            // Try to parse error response
+            $error_data = json_decode($response_body, true);
+            $error_message = 'HTTP ' . $response_code;
+            
+            if (is_array($error_data)) {
+                if (isset($error_data['error'])) {
+                    $error_message .= ': ' . $error_data['error'];
+                    if (isset($error_data['error_description'])) {
+                        $error_message .= ' - ' . $error_data['error_description'];
+                    }
+                } elseif (isset($error_data['message'])) {
+                    $error_message .= ': ' . $error_data['message'];
+                } else {
+                    $error_message .= ': ' . $response_body;
+                }
+            } else {
+                $error_message .= ': ' . $response_body;
+            }
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay OAuth Refresh Error: ' . $error_message);
+            }
+            // Store error for retrieval
+            update_option('bys_last_oauth_error', $error_message);
             return false;
         }
         
         $data = json_decode($response_body, true);
         
         if (!isset($data['access_token'])) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay OAuth Refresh Error: No access token in response');
+            $error_message = 'No access token in response';
+            if (is_array($data) && isset($data['error'])) {
+                $error_message = $data['error'];
+                if (isset($data['error_description'])) {
+                    $error_message .= ': ' . $data['error_description'];
+                }
             }
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay OAuth Refresh Error: ' . $error_message . ' - Response: ' . $response_body);
+            }
+            // Store error for retrieval
+            update_option('bys_last_oauth_error', $error_message);
             return false;
         }
+        
+        // Clear any previous errors on success
+        delete_option('bys_last_oauth_error');
         
         $access_token = $data['access_token'];
         $expires_in = isset($data['expires_in']) ? intval($data['expires_in']) : 3600;
