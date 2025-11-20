@@ -24,6 +24,7 @@ define('BYS_PLUGIN_VERSION', '1.0.0');
 // Include required files
 require_once BYS_PLUGIN_PATH . 'includes/class-bys-oauth.php';
 require_once BYS_PLUGIN_PATH . 'includes/class-bys-deep-link.php';
+require_once BYS_PLUGIN_PATH . 'includes/class-bys-api.php';
 require_once BYS_PLUGIN_PATH . 'includes/class-bys-admin.php';
 require_once BYS_PLUGIN_PATH . 'includes/class-bys-frontend.php';
 

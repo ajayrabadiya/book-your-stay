@@ -67,6 +67,7 @@ if (!defined('ABSPATH')) {
                     </select>
                     <p class="description">
                         <?php _e('Select the SHR API environment. Use UAT for testing and Production for live sites.', 'book-your-stay'); ?>
+                        <br><strong style="color: #d63638;">⚠️ Important:</strong> <?php _e('Your credentials must match the selected environment. Production credentials will NOT work with UAT endpoint and vice versa.', 'book-your-stay'); ?>
                     </p>
                 </td>
             </tr>
@@ -133,6 +134,60 @@ if (!defined('ABSPATH')) {
                     <button type="button" class="button" id="bys-test-token" style="margin-top: 5px;">
                         <?php _e('Test Token', 'book-your-stay'); ?>
                     </button>
+                    <div id="bys-token-test-result" style="margin-top: 10px; display: none;"></div>
+                    <?php 
+                    $last_error = get_option('bys_last_oauth_error', '');
+                    if (!empty($last_error)): 
+                    ?>
+                    <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107;">
+                        <strong><?php _e('Last OAuth Error:', 'book-your-stay'); ?></strong>
+                        <p style="margin: 5px 0 0 0;"><?php echo esc_html($last_error); ?></p>
+                    </div>
+                    <?php endif; ?>
+                </td>
+            </tr>
+            <?php endif; ?>
+            
+            <?php if (!empty($client_id) && !empty($client_secret)): ?>
+            <tr>
+                <th colspan="2">
+                    <h2><?php _e('Troubleshooting', 'book-your-stay'); ?></h2>
+                </th>
+            </tr>
+            <tr>
+                <td colspan="2">
+                    <div style="background: #f0f6fc; border-left: 4px solid #2271b1; padding: 15px; margin: 10px 0;">
+                        <h3 style="margin-top: 0;"><?php _e('If you see "invalid_client" error:', 'book-your-stay'); ?></h3>
+                        <ol>
+                            <li><?php _e('Verify your credentials match the selected environment:', 'book-your-stay'); ?>
+                                <ul>
+                                    <li><strong>UAT:</strong> <?php _e('Use UAT credentials from SHR', 'book-your-stay'); ?></li>
+                                    <li><strong>Production:</strong> <?php _e('Use Production credentials from SHR', 'book-your-stay'); ?></li>
+                                </ul>
+                            </li>
+                            <li><?php _e('Check for hidden characters:', 'book-your-stay'); ?>
+                                <ul>
+                                    <li><?php _e('Copy credentials directly from SHR (don\'t type manually)', 'book-your-stay'); ?></li>
+                                    <li><?php _e('Remove any extra spaces before/after credentials', 'book-your-stay'); ?></li>
+                                    <li><?php _e('Ensure no line breaks or special characters', 'book-your-stay'); ?></li>
+                                </ul>
+                            </li>
+                            <li><?php _e('Verify API access:', 'book-your-stay'); ?>
+                                <ul>
+                                    <li><?php _e('Confirm your API credentials are active in the SHR system', 'book-your-stay'); ?></li>
+                                    <li><?php _e('Check that your account has API access permissions', 'book-your-stay'); ?></li>
+                                    <li><?php _e('Contact SHR support to verify your API credentials', 'book-your-stay'); ?></li>
+                                </ul>
+                            </li>
+                            <li><?php _e('Check WordPress debug log:', 'book-your-stay'); ?>
+                                <ul>
+                                    <li><?php _e('Enable WP_DEBUG in wp-config.php', 'book-your-stay'); ?></li>
+                                    <li><?php _e('Check wp-content/debug.log for detailed error messages', 'book-your-stay'); ?></li>
+                                </ul>
+                            </li>
+                        </ol>
+                        <p><strong><?php _e('Note:', 'book-your-stay'); ?></strong> <?php _e('The plugin tries multiple authentication methods automatically. If all fail, the credentials are likely incorrect or inactive.', 'book-your-stay'); ?></p>
+                    </div>
                 </td>
             </tr>
             <?php endif; ?>
@@ -233,10 +288,14 @@ jQuery(document).ready(function($) {
                 nonce: '<?php echo wp_create_nonce('bys_test_token'); ?>'
             },
             success: function(response) {
+                var $result = $('#bys-token-test-result');
+                $result.show();
+                
                 if (response.success) {
-                    alert('<?php esc_attr_e('Token is valid and working!', 'book-your-stay'); ?>');
+                    $result.html('<div style="padding: 10px; background: #d4edda; border-left: 4px solid #28a745; color: #155724;"><strong>✓ Success!</strong> ' + (response.data.message || 'Token is valid and working!') + '</div>');
                 } else {
-                    alert('<?php esc_attr_e('Token test failed: ', 'book-your-stay'); ?>' + (response.data.message || 'Unknown error'));
+                    var errorMsg = response.data && response.data.message ? response.data.message : 'Unknown error';
+                    $result.html('<div style="padding: 10px; background: #f8d7da; border-left: 4px solid #dc3545; color: #721c24;"><strong>✗ Failed:</strong> ' + errorMsg + '</div>');
                 }
                 $button.prop('disabled', false).text(originalText);
             },

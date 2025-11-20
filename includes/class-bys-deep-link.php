@@ -60,12 +60,14 @@ class BYS_Deep_Link {
             }
         }
         
-        // Calendar variables
+        // Calendar variables - convert YYYY-MM-DD to MM/DD/YYYY format for booking engine
         if (!empty($params['checkin'])) {
-            $query_params['checkin'] = sanitize_text_field($params['checkin']);
+            $checkin = sanitize_text_field($params['checkin']);
+            $query_params['checkin'] = $this->convert_date_format($checkin);
         }
         if (!empty($params['checkout'])) {
-            $query_params['checkout'] = sanitize_text_field($params['checkout']);
+            $checkout = sanitize_text_field($params['checkout']);
+            $query_params['checkout'] = $this->convert_date_format($checkout);
         }
         if (!empty($params['nights'])) {
             $query_params['nights'] = intval($params['nights']);
@@ -113,6 +115,33 @@ class BYS_Deep_Link {
         }
         
         return $url;
+    }
+    
+    /**
+     * Convert date format from YYYY-MM-DD to MM/DD/YYYY for booking engine
+     */
+    private function convert_date_format($date) {
+        // If already in MM/DD/YYYY format, return as is
+        if (preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $date)) {
+            return $date;
+        }
+        
+        // If in YYYY-MM-DD format, convert to MM/DD/YYYY
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            $date_parts = explode('-', $date);
+            if (count($date_parts) === 3) {
+                return $date_parts[1] . '/' . $date_parts[2] . '/' . $date_parts[0];
+            }
+        }
+        
+        // Try to parse other formats
+        $timestamp = strtotime($date);
+        if ($timestamp !== false) {
+            return date('m/d/Y', $timestamp);
+        }
+        
+        // If all else fails, return original
+        return $date;
     }
 }
 
