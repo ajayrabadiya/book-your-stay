@@ -2,7 +2,6 @@
 /**
  * Hotel Rooms List Template
  */
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -20,6 +19,8 @@ $default_checkout = !empty($atts['checkout']) ? $atts['checkout'] : date('Y-m-d'
 $default_adults = !empty($atts['adults']) ? intval($atts['adults']) : 2;
 $default_children = !empty($atts['children']) ? intval($atts['children']) : 0;
 $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
+
+
 ?>
 
 <div class="bys-hotel-rooms">
@@ -52,12 +53,27 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
                                 </div>
                             <?php endif; ?>
                         </div>
-                    <?php elseif ($is_fallback): ?>
-                        <!-- Fallback: Show a placeholder or icon -->
+                    <?php else: ?>
+                        <!-- Show placeholder when no image is available -->
                         <div class="bys-room-image bys-room-image-placeholder">
                             <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #8B4513; font-size: 48px;">
                                 🏨
                             </div>
+                            <?php if ($room['from_price'] !== null): ?>
+                                <div class="bys-room-price-badge">
+                                    <?php 
+                                    $currency_symbol = 'R'; // Default for ZAR
+                                    if ($room['currency'] === 'USD') $currency_symbol = '$';
+                                    elseif ($room['currency'] === 'EUR') $currency_symbol = '€';
+                                    elseif ($room['currency'] === 'GBP') $currency_symbol = '£';
+                                    ?>
+                                    <span class="bys-price-label"><?php _e('FROM', 'book-your-stay'); ?></span>
+                                    <span class="bys-price-amount">
+                                        <?php echo esc_html($currency_symbol . number_format($room['from_price'], 0)); ?>
+                                    </span>
+                                    <span class="bys-price-period">/ <?php _e('NIGHT', 'book-your-stay'); ?></span>
+                                </div>
+                            <?php endif; ?>
                         </div>
                     <?php endif; ?>
                     

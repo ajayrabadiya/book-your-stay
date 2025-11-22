@@ -19,6 +19,34 @@ class BYS_Frontend {
         add_action('wp_ajax_bys_generate_deep_link', array($this, 'ajax_generate_deep_link'));
         add_action('wp_ajax_nopriv_bys_generate_deep_link', array($this, 'ajax_generate_deep_link'));
         add_action('wp_footer', array($this, 'print_footer_scripts'), 999);
+        
+        // Handle token clear request from frontend
+        add_action('init', array($this, 'handle_token_clear_request'));
+    }
+    
+    /**
+     * Handle token clear request from frontend (for 403 errors)
+     */
+    public function handle_token_clear_request() {
+        if (isset($_POST['bys_action']) && $_POST['bys_action'] === 'clear_token' && current_user_can('manage_options')) {
+            check_admin_referer('bys_clear_token', 'bys_clear_token_nonce');
+            
+            $oauth = BYS_OAuth::get_instance();
+            $oauth->clear_token();
+            
+            // Also clear API errors
+            delete_option('bys_last_api_error');
+            delete_option('bys_last_api_error_code');
+            delete_option('bys_last_api_error_url');
+            
+            // Redirect to prevent form resubmission
+            $redirect_url = remove_query_arg(array('bys_action'));
+            if (isset($_SERVER['REQUEST_URI'])) {
+                $redirect_url = $_SERVER['REQUEST_URI'];
+            }
+            wp_redirect($redirect_url);
+            exit;
+        }
     }
     
     /**
@@ -340,10 +368,68 @@ class BYS_Frontend {
                 
                 // Add a notice for admins if debug is enabled
                 if (defined('WP_DEBUG') && WP_DEBUG && current_user_can('manage_options')) {
-                    $output .= '<div style="margin-top: 20px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; font-size: 12px;">';
-                    $output .= '<strong>Admin Notice:</strong> API is unavailable. Showing fallback booking link. ';
-                    $output .= 'Hotel Code: ' . esc_html($hotel_code) . ', Property ID: ' . esc_html($property_id) . '. ';
-                    $output .= 'Check WordPress debug.log for API details.';
+                    // Get last OAuth error if available
+                    $oauth_error = get_option('bys_last_oauth_error', '');
+                    $api = BYS_API::get_instance();
+                    $oauth = BYS_OAuth::get_instance();
+                    $token_info = $oauth->get_token_info();
+                    $has_token = $oauth->is_token_valid();
+                    
+                    $output .= '<div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; font-size: 12px; font-family: monospace;">';
+                    $output .= '<strong>Admin Debug Notice:</strong> API is unavailable. Showing fallback booking link.<br><br>';
+                    $output .= '<strong>Configuration:</strong><br>';
+                    $output .= 'Hotel Code: ' . esc_html($hotel_code) . '<br>';
+                    $output .= 'Property ID: ' . esc_html($property_id ?: 'Not set') . '<br>';
+                    $output .= 'Environment: ' . esc_html(get_option('bys_environment', 'uat')) . '<br><br>';
+                    
+                    $output .= '<strong>OAuth Status:</strong><br>';
+                    $output .= 'Has Access Token: ' . ($has_token ? '✓ Yes' : '✗ No') . '<br>';
+                    if ($has_token) {
+                        $output .= 'Token Expires In: ' . ($token_info['access_token_expires_in'] > 0 ? round($token_info['access_token_expires_in'] / 60) . ' minutes' : 'Expired') . '<br>';
+                    }
+                    if (!empty($oauth_error)) {
+                        $output .= 'OAuth Error: <span style="color: red;">' . esc_html($oauth_error) . '</span><br>';
+                    }
+                    $output .= '<br>';
+                    
+                    // Show last API error if available
+                    $api_error = get_option('bys_last_api_error', '');
+                    $api_error_code = get_option('bys_last_api_error_code', '');
+                    $api_error_url = get_option('bys_last_api_error_url', '');
+                    if (!empty($api_error)) {
+                        $output .= '<strong>Last API Error:</strong><br>';
+                        $output .= '<span style="color: red;">HTTP ' . esc_html($api_error_code) . ': ' . esc_html($api_error) . '</span><br>';
+                        if (!empty($api_error_url)) {
+                            $output .= 'URL: ' . esc_html($api_error_url) . '<br>';
+                        }
+                        
+                        // Special handling for 403 errors - likely scope issue
+                        if ($api_error_code === '403') {
+                            $output .= '<br>';
+                            $output .= '<div style="background: #f8d7da; border: 1px solid #f5c6cb; padding: 10px; margin-top: 10px; border-radius: 4px;">';
+                            $output .= '<strong style="color: #721c24;">⚠️ 403 Forbidden Error Detected</strong><br>';
+                            $output .= 'This usually means the OAuth token does not have the required scope "wsapi.hoteldetails.read".<br><br>';
+                            $output .= '<strong>Solution:</strong><br>';
+                            $output .= '1. Click the button below to clear the token cache and force a refresh<br>';
+                            $output .= '2. The system will request a new token with the correct scope<br>';
+                            $output .= '3. Refresh this page after clearing the token<br><br>';
+                            $output .= '<form method="post" action="" style="margin: 0;">';
+                            $output .= wp_nonce_field('bys_clear_token', 'bys_clear_token_nonce', true, false);
+                            $output .= '<input type="hidden" name="bys_action" value="clear_token">';
+                            $output .= '<button type="submit" style="background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">Clear Token Cache & Force Refresh</button>';
+                            $output .= '</form>';
+                            $output .= '</div>';
+                        }
+                        
+                        $output .= '<br>';
+                    }
+                    
+                    $output .= '<strong>Troubleshooting:</strong><br>';
+                    $output .= '1. Check WordPress debug.log for detailed API request/response logs<br>';
+                    $output .= '2. Verify OAuth credentials in plugin settings<br>';
+                    $output .= '3. Ensure the scope "wsapi.hoteldetails.read" is included in token request<br>';
+                    $output .= '4. Verify hotel code "' . esc_html($hotel_code) . '" is correct<br>';
+                    $output .= '5. Check API endpoint: ' . esc_html((get_option('bys_environment', 'uat') === 'production' ? 'https://api.shrglobal.com/shop' : 'https://apiuat.shrglobal.com/shop') . '/hotelDetails/' . $hotel_code . '/room?channelId=1') . '<br>';
                     $output .= '</div>';
                 }
                 

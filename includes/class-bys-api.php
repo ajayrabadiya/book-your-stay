@@ -34,6 +34,16 @@ class BYS_API {
     }
     
     /**
+     * Get Shop API base URL based on environment
+     */
+    private function get_shop_api_base_url() {
+        $environment = get_option('bys_environment', 'uat');
+        return ($environment === 'production') 
+            ? 'https://api.shrglobal.com/shop'
+            : 'https://apiuat.shrglobal.com/shop';
+    }
+    
+    /**
      * Get IDS Distribution Pull API base URL
      */
     private function get_ids_base_url() {
@@ -53,28 +63,71 @@ class BYS_API {
         if (!$access_token) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
                 error_log('Book Your Stay API: No access token available');
+                error_log('Book Your Stay API: Token fetch failed. Check OAuth credentials and scope.');
             }
             return false;
         }
         
-        $base_url = $is_ids ? $this->get_ids_base_url() : $this->get_api_base_url();
+        // Log token info for debugging (first 20 chars only for security)
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            $token_preview = substr($access_token, 0, 20) . '...';
+            error_log('Book Your Stay API: Using access token: ' . $token_preview);
+        }
+        
+        // Check if this is a room endpoint and we got a 403 before - force token refresh
+        $is_room_endpoint = (strpos($endpoint, '/hotelDetails/') !== false && strpos($endpoint, '/room') !== false);
+        $last_api_error_code = get_option('bys_last_api_error_code', '');
+        
+        if ($is_room_endpoint && $last_api_error_code === '403') {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay API: Previous 403 error detected for room endpoint. Forcing token refresh with correct scope.');
+            }
+            // Clear token and force refresh with correct scope
+            $this->oauth->clear_token();
+            $access_token = $this->oauth->get_access_token();
+            
+            if (!$access_token) {
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('Book Your Stay API: Failed to get new token after 403 error');
+                }
+                return false;
+            }
+        }
+        
+        // Determine base URL based on endpoint type
+        if ($is_ids) {
+            $base_url = $this->get_ids_base_url();
+        } elseif (strpos($endpoint, '/hotelDetails/') !== false || strpos($endpoint, '/shop/') === 0) {
+            // Use shop API base URL for room endpoints
+            $base_url = $this->get_shop_api_base_url();
+        } else {
+            $base_url = $this->get_api_base_url();
+        }
         $url = $base_url . $endpoint;
         
         // Determine Accept header based on endpoint
         // Rate Calendar API returns XML, IDS API may return XML or JSON
         $is_rate_calendar = (strpos($endpoint, 'ratecalendar') !== false);
+        $is_room_endpoint = (strpos($endpoint, '/hotelDetails/') !== false && strpos($endpoint, '/room') !== false);
         $accept_header = 'application/json';
         if ($is_ids || $is_rate_calendar) {
             $accept_header = 'application/xml, application/json, text/xml';
         }
         
+        // Build headers - for GET requests, don't include Content-Type
+        $headers = array(
+            'Authorization' => 'Bearer ' . $access_token,
+            'Accept' => $accept_header
+        );
+        
+        // Only add Content-Type for POST/PUT requests with body
+        if ($method !== 'GET' && $body !== null) {
+            $headers['Content-Type'] = 'application/json';
+        }
+        
         $args = array(
             'method' => $method,
-            'headers' => array(
-                'Authorization' => 'Bearer ' . $access_token,
-                'Content-Type' => 'application/json',
-                'Accept' => $accept_header
-            ),
+            'headers' => $headers,
             'timeout' => 30,
             'sslverify' => true
         );
@@ -85,6 +138,11 @@ class BYS_API {
         
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('Book Your Stay API: Making request to ' . $url);
+            error_log('Book Your Stay API: Method: ' . $method);
+            error_log('Book Your Stay API: Headers: ' . print_r($headers, true));
+            if ($is_room_endpoint) {
+                error_log('Book Your Stay API: Room endpoint detected - URL: ' . $url);
+            }
         }
         
         $response = wp_remote_request($url, $args);
@@ -105,11 +163,48 @@ class BYS_API {
         }
         
         if ($response_code !== 200) {
-            if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay API Error: HTTP ' . $response_code . ' - ' . $response_body);
+            // Try to parse error response for more details
+            $error_data = json_decode($response_body, true);
+            $error_message = 'HTTP ' . $response_code;
+            
+            if (is_array($error_data)) {
+                if (isset($error_data['error'])) {
+                    $error_message = $error_data['error'];
+                    if (isset($error_data['error_description'])) {
+                        $error_message .= ': ' . $error_data['error_description'];
+                    } elseif (isset($error_data['message'])) {
+                        $error_message .= ': ' . $error_data['message'];
+                    }
+                } elseif (isset($error_data['message'])) {
+                    $error_message = $error_data['message'];
+                }
+            } else {
+                $error_message .= ': ' . substr($response_body, 0, 200);
             }
+            
+            // Store error for display
+            update_option('bys_last_api_error', $error_message);
+            update_option('bys_last_api_error_code', $response_code);
+            update_option('bys_last_api_error_url', $url);
+            
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay API Error: HTTP ' . $response_code);
+                error_log('Book Your Stay API Error: ' . $error_message);
+                error_log('Book Your Stay API Error: Full response body: ' . $response_body);
+                error_log('Book Your Stay API Error: Request URL: ' . $url);
+                error_log('Book Your Stay API Error: Request headers: ' . print_r($args['headers'], true));
+                if (is_array($error_data)) {
+                    error_log('Book Your Stay API Error Details: ' . print_r($error_data, true));
+                }
+            }
+            
             return false;
         }
+        
+        // Clear any previous errors on success
+        delete_option('bys_last_api_error');
+        delete_option('bys_last_api_error_code');
+        delete_option('bys_last_api_error_url');
         
         // Try to parse as JSON first
         $decoded = json_decode($response_body, true);
@@ -316,322 +411,297 @@ class BYS_API {
     }
     
     /**
-     * Get room list with pricing
-     * Combines HotelDescriptiveInfo and Rate Calendar data
+     * Get rooms from Shop API
+     * Uses the new /hotelDetails/:hotelCode/room endpoint
      */
-    public function get_room_list($params = array()) {
-        // Ensure we have hotel code or property ID
-        if (empty($params['pcode']) && empty($params['propertyID'])) {
-            $hotel_code = get_option('bys_hotel_code', '');
-            $property_id = get_option('bys_property_id', '');
-            
-            if (!empty($hotel_code)) {
-                $params['pcode'] = $hotel_code;
+    public function get_rooms($params = array()) {
+        // Get from params first, then fallback to settings
+        $hotel_code = isset($params['pcode']) && !empty($params['pcode']) 
+            ? sanitize_text_field($params['pcode']) 
+            : get_option('bys_hotel_code', '');
+        
+        if (empty($hotel_code)) {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay API: No hotel code available for rooms');
             }
-            if (!empty($property_id)) {
-                $params['propertyID'] = intval($property_id);
+            return false;
+        }
+        
+        // Build endpoint: /hotelDetails/:hotelCode/room?channelId=1
+        // Don't URL encode the hotel code in the path - it should be used as-is
+        $endpoint = '/hotelDetails/' . $hotel_code . '/room';
+        
+        // Add query parameters - only channelId is required
+        $query_params = array(
+            'channelId' => 1
+        );
+        
+        // Add optional date parameters if provided (for filtering)
+        if (!empty($params['checkin'])) {
+            $query_params['checkin'] = sanitize_text_field($params['checkin']);
+        }
+        if (!empty($params['checkout'])) {
+            $query_params['checkout'] = sanitize_text_field($params['checkout']);
+        }
+        
+        // Note: adults, children, and rooms parameters are NOT included
+        // as they are not needed for the room list API endpoint
+        
+        if (!empty($query_params)) {
+            $endpoint .= '?' . http_build_query($query_params);
+        }
+        
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            error_log('Book Your Stay API: Calling rooms endpoint: ' . $endpoint);
+            error_log('Book Your Stay API: Hotel code: ' . $hotel_code);
+            error_log('Book Your Stay API: Full URL will be: ' . $this->get_shop_api_base_url() . $endpoint);
+        }
+        
+        $response = $this->make_api_request($endpoint, 'GET', null, false);
+        
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            if ($response === false) {
+                error_log('Book Your Stay API: Failed to get rooms from ' . $endpoint);
+            } else {
+                error_log('Book Your Stay API: Successfully received rooms data');
+                error_log('Book Your Stay API: Response type: ' . gettype($response));
+                if (is_array($response)) {
+                    error_log('Book Your Stay API: Response keys: ' . print_r(array_keys($response), true));
+                    if (isset($response['productDetailList'])) {
+                        error_log('Book Your Stay API: Found productDetailList with ' . count($response['productDetailList']) . ' items');
+                    }
+                }
             }
         }
         
-        if (empty($params['pcode']) && empty($params['propertyID'])) {
+        return $response;
+    }
+    
+    /**
+     * Get room list with pricing
+     * Uses the new Shop API /hotelDetails/:hotelCode/room endpoint
+     */
+    public function get_room_list($params = array()) {
+        // Ensure we have hotel code
+        if (empty($params['pcode'])) {
+            $hotel_code = get_option('bys_hotel_code', '');
+            if (!empty($hotel_code)) {
+                $params['pcode'] = $hotel_code;
+            }
+        }
+        
+        if (empty($params['pcode'])) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay API: No hotel code or property ID provided');
+                error_log('Book Your Stay API: No hotel code provided');
             }
             return false;
         }
         
         // Log the hotel code being used
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            $log_code = !empty($params['pcode']) ? $params['pcode'] : 'Property ID: ' . $params['propertyID'];
-            error_log('Book Your Stay API: Fetching rooms for ' . $log_code);
+            error_log('Book Your Stay API: Fetching rooms for ' . $params['pcode']);
         }
         
-        // Get room types from HotelDescriptiveInfo
-        $descriptive_info = $this->get_hotel_descriptive_info($params);
+        // Get rooms from new Shop API endpoint
+        $rooms_response = $this->get_rooms($params);
         
-        if (!$descriptive_info) {
+        // Cache hotel descriptive info for image fetching (to avoid multiple API calls)
+        $descriptive_info_cache = null;
+        
+        if (!$rooms_response) {
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay API: Failed to get hotel descriptive info');
+                error_log('Book Your Stay API: Failed to get rooms from API');
+                error_log('Book Your Stay API: Hotel code used: ' . (isset($params['pcode']) ? $params['pcode'] : 'not set'));
+                
+                // Check OAuth status
+                $oauth = BYS_OAuth::get_instance();
+                $has_token = $oauth->is_token_valid();
+                $token_info = $oauth->get_token_info();
+                $oauth_error = get_option('bys_last_oauth_error', '');
+                
+                error_log('Book Your Stay API: OAuth token valid: ' . ($has_token ? 'Yes' : 'No'));
+                if (!$has_token) {
+                    error_log('Book Your Stay API: OAuth error: ' . ($oauth_error ?: 'No error message'));
+                } else {
+                    error_log('Book Your Stay API: Token expires in: ' . ($token_info['access_token_expires_in'] > 0 ? round($token_info['access_token_expires_in'] / 60) . ' minutes' : 'Expired'));
+                }
             }
             return false;
         }
         
-        // Get pricing from Shop API Rate Calendar
-        $rate_calendar = $this->get_rate_calendar($params);
-        
-        if (defined('WP_DEBUG') && WP_DEBUG) {
-            error_log('Book Your Stay API: Descriptive info received');
-            if ($rate_calendar) {
-                error_log('Book Your Stay API: Rate calendar received');
-            } else {
-                error_log('Book Your Stay API: Rate calendar not available');
-            }
-        }
-        
-        // Combine data
+        // Parse the response and format rooms
         $rooms = array();
         
-        // Parse descriptive info to extract room types
-        // Use recursive search to find room data in any structure
-        $room_types = $this->find_rooms_in_response($descriptive_info);
+        // Extract room data from response - handle the new API structure
+        $room_data = null;
+        
+        // Check for productDetailList (new API structure)
+        if (isset($rooms_response['productDetailList']) && is_array($rooms_response['productDetailList'])) {
+            $room_data = $rooms_response['productDetailList'];
+        }
+        // Fallback to other possible structures
+        elseif (isset($rooms_response['data']) && is_array($rooms_response['data'])) {
+            $room_data = $rooms_response['data'];
+        } elseif (isset($rooms_response['rooms']) && is_array($rooms_response['rooms'])) {
+            $room_data = $rooms_response['rooms'];
+        } elseif (isset($rooms_response['roomTypes']) && is_array($rooms_response['roomTypes'])) {
+            $room_data = $rooms_response['roomTypes'];
+        } elseif (is_array($rooms_response) && isset($rooms_response[0])) {
+            // Direct array of rooms
+            $room_data = $rooms_response;
+        } elseif (is_array($rooms_response)) {
+            // Try to find rooms using recursive search
+            $room_data = $this->find_rooms_in_response($rooms_response);
+        }
         
         if (defined('WP_DEBUG') && WP_DEBUG) {
-            if ($room_types) {
-                error_log('Book Your Stay API: Found ' . (is_array($room_types) ? count($room_types) : 1) . ' room type(s)');
+            if ($room_data) {
+                $count = is_array($room_data) ? (isset($room_data[0]) ? count($room_data) : 1) : 1;
+                error_log('Book Your Stay API: Found ' . $count . ' room(s) in response');
+                error_log('Book Your Stay API: Response structure - ' . (isset($rooms_response['productDetailList']) ? 'productDetailList found' : 'productDetailList not found'));
             } else {
-                error_log('Book Your Stay API: No room types found. Top level keys: ' . print_r(array_keys($descriptive_info), true));
-                // Try to find any nested arrays that might contain rooms
-                $this->search_for_rooms_recursive($descriptive_info, 0, 3);
+                error_log('Book Your Stay API: No rooms found. Top level keys: ' . print_r(array_keys($rooms_response), true));
             }
         }
         
-        if ($room_types) {
+        if ($room_data) {
             // Ensure it's an array
-            if (!is_array($room_types) || (isset($room_types['@attributes']) && !isset($room_types[0]))) {
-                $room_types = array($room_types);
+            if (!is_array($room_data) || (isset($room_data['@attributes']) && !isset($room_data[0]))) {
+                $room_data = array($room_data);
             }
             
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay API: Processing ' . count($room_types) . ' room type(s)');
+                error_log('Book Your Stay API: Processing ' . count($room_data) . ' room(s)');
             }
             
-            foreach ($room_types as $room_type) {
-                if (empty($room_type) || !is_array($room_type)) {
+            foreach ($room_data as $room_item) {
+                if (empty($room_item) || !is_array($room_item)) {
+                    continue;
+                }
+                
+                // Filter for roomtype products only (new API structure)
+                if (isset($room_item['productType']) && $room_item['productType'] !== 'roomtype') {
                     continue;
                 }
                 
                 if (defined('WP_DEBUG') && WP_DEBUG) {
-                    error_log('Book Your Stay API: Processing room type. Keys: ' . print_r(array_keys($room_type), true));
-                }
-                $room_code = isset($room_type['@attributes']['RoomTypeCode']) 
-                    ? $room_type['@attributes']['RoomTypeCode'] 
-                    : (isset($room_type['RoomTypeCode']) ? $room_type['RoomTypeCode'] : '');
-                
-                // Get room name - try multiple possible fields
-                $room_name = '';
-                if (isset($room_type['RoomDescription']['Text'])) {
-                    $room_name = $room_type['RoomDescription']['Text'];
-                } elseif (isset($room_type['Name'])) {
-                    $room_name = $room_type['Name'];
-                } elseif (isset($room_type['@attributes']['Name'])) {
-                    $room_name = $room_type['@attributes']['Name'];
-                } elseif (isset($room_type['Title'])) {
-                    $room_name = $room_type['Title'];
-                } elseif (isset($room_type['roomName'])) {
-                    $room_name = $room_type['roomName'];
-                } elseif (isset($room_type['Description']['Text'])) {
-                    $room_name = $room_type['Description']['Text'];
-                } elseif (isset($room_type['Text'])) {
-                    $room_name = $room_type['Text'];
+                    error_log('Book Your Stay API: Processing room. Keys: ' . print_r(array_keys($room_item), true));
                 }
                 
-                // Get amenities
-                $amenities = array();
-                if (isset($room_type['Amenities']['Amenity'])) {
-                    $amenity_list = $room_type['Amenities']['Amenity'];
-                    if (!is_array($amenity_list)) {
-                        $amenity_list = array($amenity_list);
+                // Extract room information from new API structure
+                // New API structure: code, name, totalOccupancy, adultOccupancy, childOccupancy, bedType, roomCategory, roomAmenities
+                $room_code = isset($room_item['code']) ? $room_item['code'] : '';
+                $room_name = isset($room_item['name']) ? $room_item['name'] : '';
+                $max_occupancy = isset($room_item['totalOccupancy']) ? intval($room_item['totalOccupancy']) : (isset($room_item['adultOccupancy']) ? intval($room_item['adultOccupancy']) : 2);
+                $bed_type = isset($room_item['bedType']) ? $room_item['bedType'] : '';
+                $room_category = isset($room_item['roomCategory']) ? $room_item['roomCategory'] : '';
+                $smoking_pref = isset($room_item['smokingPref']) ? $room_item['smokingPref'] : '';
+                
+                // Build description from available fields
+                $description_parts = array();
+                if (!empty($bed_type)) {
+                    $description_parts[] = $bed_type . ' bed';
+                }
+                if (!empty($room_category)) {
+                    $description_parts[] = $room_category . ' room';
+                }
+                if (!empty($smoking_pref) && $smoking_pref !== 'Nonsmoking') {
+                    $description_parts[] = $smoking_pref;
+                }
+                // Add occupancy info
+                if (isset($room_item['adultOccupancy']) && isset($room_item['childOccupancy'])) {
+                    $occupancy_text = $room_item['adultOccupancy'] . ' adult' . ($room_item['adultOccupancy'] > 1 ? 's' : '');
+                    if ($room_item['childOccupancy'] > 0) {
+                        $occupancy_text .= ', ' . $room_item['childOccupancy'] . ' child' . ($room_item['childOccupancy'] > 1 ? 'ren' : '');
                     }
-                    foreach ($amenity_list as $amenity) {
-                        $amenity_name = isset($amenity['@attributes']['Code']) 
-                            ? $amenity['@attributes']['Code'] 
-                            : (isset($amenity['Text']) ? $amenity['Text'] : '');
-                        if (!empty($amenity_name)) {
-                            $amenities[] = $amenity_name;
-                        }
-                    }
+                    $description_parts[] = $occupancy_text;
                 }
+                $description = !empty($description_parts) ? implode(' • ', $description_parts) : '';
                 
-                // Get description
-                $description = '';
-                if (isset($room_type['RoomDescription']['Text'])) {
-                    $description = $room_type['RoomDescription']['Text'];
-                } elseif (isset($room_type['Description'])) {
-                    $description = is_array($room_type['Description']) 
-                        ? (isset($room_type['Description']['Text']) ? $room_type['Description']['Text'] : '')
-                        : $room_type['Description'];
-                }
-                
-                // Get room size, view, occupancy - try multiple possible fields
+                // Size and view not available in new API, leave empty
                 $size = '';
-                if (isset($room_type['@attributes']['Size'])) {
-                    $size = $room_type['@attributes']['Size'];
-                } elseif (isset($room_type['Size'])) {
-                    $size = $room_type['Size'];
-                } elseif (isset($room_type['Area'])) {
-                    $size = $room_type['Area'];
-                } elseif (isset($room_type['SquareMeters'])) {
-                    $size = $room_type['SquareMeters'] . 'm²';
-                }
-                
                 $view = '';
-                if (isset($room_type['View'])) {
-                    $view = $room_type['View'];
-                } elseif (isset($room_type['RoomView'])) {
-                    $view = $room_type['RoomView'];
-                } elseif (isset($room_type['@attributes']['View'])) {
-                    $view = $room_type['@attributes']['View'];
-                }
                 
-                $max_occupancy = 2;
-                if (isset($room_type['@attributes']['MaxOccupancy'])) {
-                    $max_occupancy = intval($room_type['@attributes']['MaxOccupancy']);
-                } elseif (isset($room_type['MaxOccupancy'])) {
-                    $max_occupancy = intval($room_type['MaxOccupancy']);
-                } elseif (isset($room_type['Occupancy'])) {
-                    $max_occupancy = intval($room_type['Occupancy']);
-                } elseif (isset($room_type['MaxGuests'])) {
-                    $max_occupancy = intval($room_type['MaxGuests']);
-                }
-                
-                // Get image
+                // Try to get image URL from room item
                 $image_url = '';
-                if (isset($room_type['Images']['Image'][0]['URL'])) {
-                    $image_url = $room_type['Images']['Image'][0]['URL'];
-                } elseif (isset($room_type['Image'])) {
-                    $image_url = is_array($room_type['Image']) 
-                        ? (isset($room_type['Image']['URL']) ? $room_type['Image']['URL'] : '')
-                        : $room_type['Image'];
+                
+                // Check for images in the room response
+                if (isset($room_item['images']) && is_array($room_item['images']) && !empty($room_item['images'])) {
+                    // Get first image URL
+                    $first_image = $room_item['images'][0];
+                    if (is_array($first_image) && isset($first_image['url'])) {
+                        $image_url = $first_image['url'];
+                    } elseif (is_array($first_image) && isset($first_image['imageUrl'])) {
+                        $image_url = $first_image['imageUrl'];
+                    } elseif (is_string($first_image)) {
+                        $image_url = $first_image;
+                    }
+                    
+                    if (defined('WP_DEBUG') && WP_DEBUG && !empty($image_url)) {
+                        error_log('Book Your Stay API: Found image in room response for ' . $room_code . ': ' . $image_url);
+                    }
+                } elseif (isset($room_item['imageUrl'])) {
+                    $image_url = $room_item['imageUrl'];
+                } elseif (isset($room_item['image'])) {
+                    $image_url = is_array($room_item['image']) ? (isset($room_item['image']['url']) ? $room_item['image']['url'] : '') : $room_item['image'];
+                } elseif (isset($room_item['imageURL'])) {
+                    $image_url = $room_item['imageURL'];
                 }
                 
-                // Get pricing from Shop API Rate Calendar - merge with room data
+                // If no image in room response, try to get from hotel descriptive info (IDS API)
+                // According to IDS Hotel Descriptive Info API documentation:
+                // https://shrdev.atlassian.net/wiki/spaces/SPD/pages/2014380035/IDS+Hotel+Descriptive+Info
+                if (empty($image_url)) {
+                    // Use cached descriptive info if available, otherwise fetch it
+                    if ($descriptive_info_cache === null) {
+                        if (defined('WP_DEBUG') && WP_DEBUG) {
+                            error_log('Book Your Stay API: Fetching hotel descriptive info (IDS API) for room images');
+                        }
+                        $descriptive_info_cache = $this->get_hotel_descriptive_info($params);
+                        
+                        if (defined('WP_DEBUG') && WP_DEBUG) {
+                            if ($descriptive_info_cache) {
+                                error_log('Book Your Stay API: Hotel descriptive info retrieved. Top level keys: ' . print_r(array_keys($descriptive_info_cache), true));
+                            } else {
+                                error_log('Book Your Stay API: Failed to retrieve hotel descriptive info');
+                            }
+                        }
+                    }
+                    
+                    if ($descriptive_info_cache) {
+                        $image_url = $this->get_room_image_from_descriptive_info($room_code, $descriptive_info_cache);
+                    }
+                }
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    if (!empty($image_url)) {
+                        error_log('Book Your Stay API: Image found for room ' . $room_code . ': ' . $image_url);
+                    } else {
+                        error_log('Book Your Stay API: No image found for room ' . $room_code . ' (checked room API and IDS descriptive info)');
+                    }
+                }
+                
+                // Price not in this response structure (would need separate pricing API call)
                 $from_price = null;
-                $currency = 'ZAR'; // Default, adjust based on API response
+                $currency = 'ZAR'; // Default currency
                 
-                // Parse rate calendar data - Shop API returns XML with RateCalendar structure
-                $rates = null;
-                if ($rate_calendar) {
-                    // Structure 1: XML RateCalendar format (most common for Shop API)
-                    if (isset($rate_calendar['RateCalendar'])) {
-                        $rate_cal = $rate_calendar['RateCalendar'];
-                        
-                        // Try different XML structures
-                        if (isset($rate_cal['Rates']['Rate'])) {
-                            $rates = $rate_cal['Rates']['Rate'];
-                        } elseif (isset($rate_cal['RoomTypes']['RoomType'])) {
-                            // Room types with rates nested
-                            $room_types = $rate_cal['RoomTypes']['RoomType'];
-                            if (!is_array($room_types) || (isset($room_types['@attributes']) && !isset($room_types[0]))) {
-                                $room_types = array($room_types);
-                            }
-                            $rates = array();
-                            foreach ($room_types as $rt) {
-                                if (isset($rt['Rates']['Rate'])) {
-                                    $rt_rates = $rt['Rates']['Rate'];
-                                    if (!is_array($rt_rates)) {
-                                        $rt_rates = array($rt_rates);
-                                    }
-                                    foreach ($rt_rates as $rate) {
-                                        $rate['roomTypeCode'] = isset($rt['@attributes']['Code']) 
-                                            ? $rt['@attributes']['Code'] 
-                                            : (isset($rt['RoomTypeCode']) ? $rt['RoomTypeCode'] : '');
-                                        $rates[] = $rate;
-                                    }
-                                }
-                            }
-                        } elseif (isset($rate_cal['Rate'])) {
-                            $rates = $rate_cal['Rate'];
-                        }
-                        
-                        // Ensure rates is an array
-                        if ($rates && !is_array($rates)) {
-                            $rates = array($rates);
-                        } elseif ($rates && isset($rates['@attributes']) && !isset($rates[0])) {
-                            $rates = array($rates);
+                // Handle amenities from roomAmenities array
+                $amenities = array();
+                if (isset($room_item['roomAmenities']) && is_array($room_item['roomAmenities'])) {
+                    foreach ($room_item['roomAmenities'] as $amenity) {
+                        if (is_array($amenity) && isset($amenity['amenityName'])) {
+                            $amenities[] = $amenity['amenityName'];
+                        } elseif (is_string($amenity)) {
+                            $amenities[] = $amenity;
                         }
                     }
-                    // Structure 2: Direct rates array (JSON format)
-                    elseif (isset($rate_calendar['rates']) && is_array($rate_calendar['rates'])) {
-                        $rates = $rate_calendar['rates'];
-                    }
-                    // Structure 3: Direct Rate array
-                    elseif (isset($rate_calendar['Rate']) && is_array($rate_calendar['Rate'])) {
-                        $rates = $rate_calendar['Rate'];
-                    }
-                    // Structure 4: Data array
-                    elseif (isset($rate_calendar['data']) && is_array($rate_calendar['data'])) {
-                        $rates = $rate_calendar['data'];
-                    }
-                }
-                
-                if ($rates && is_array($rates)) {
-                    // Find lowest price for this room type
-                    // Rate Calendar API returns daily rates, we need the minimum
-                    foreach ($rates as $rate) {
-                        // Get room type code from rate
-                        $rate_room_code = '';
-                        if (isset($rate['roomTypeCode'])) {
-                            $rate_room_code = $rate['roomTypeCode'];
-                        } elseif (isset($rate['@attributes']['RoomTypeCode'])) {
-                            $rate_room_code = $rate['@attributes']['RoomTypeCode'];
-                        } elseif (isset($rate['RoomTypeCode'])) {
-                            $rate_room_code = $rate['RoomTypeCode'];
-                        } elseif (isset($rate['@attributes']['Code'])) {
-                            $rate_room_code = $rate['@attributes']['Code'];
-                        }
-                        
-                        // Match by room code
-                        if (!empty($rate_room_code) && $rate_room_code === $room_code) {
-                            // Get price - Rate Calendar may have daily rates, get the minimum
-                            $rate_price = null;
-                            
-                            // Check for daily rates array
-                            if (isset($rate['DailyRates']['DailyRate'])) {
-                                $daily_rates = $rate['DailyRates']['DailyRate'];
-                                if (!is_array($daily_rates)) {
-                                    $daily_rates = array($daily_rates);
-                                }
-                                foreach ($daily_rates as $daily_rate) {
-                                    $day_price = null;
-                                    if (isset($daily_rate['Price'])) {
-                                        $day_price = floatval($daily_rate['Price']);
-                                    } elseif (isset($daily_rate['@attributes']['Price'])) {
-                                        $day_price = floatval($daily_rate['@attributes']['Price']);
-                                    }
-                                    if ($day_price !== null) {
-                                        if ($rate_price === null || $day_price < $rate_price) {
-                                            $rate_price = $day_price;
-                                        }
-                                    }
-                                }
-                            }
-                            // Direct price field
-                            elseif (isset($rate['price'])) {
-                                $rate_price = floatval($rate['price']);
-                            } elseif (isset($rate['Price'])) {
-                                $rate_price = floatval($rate['Price']);
-                            } elseif (isset($rate['@attributes']['Price'])) {
-                                $rate_price = floatval($rate['@attributes']['Price']);
-                            } elseif (isset($rate['MinPrice'])) {
-                                $rate_price = floatval($rate['MinPrice']);
-                            }
-                            
-                            if ($rate_price !== null) {
-                                if ($from_price === null || $rate_price < $from_price) {
-                                    $from_price = $rate_price;
-                                    // Get currency
-                                    if (isset($rate['currency'])) {
-                                        $currency = $rate['currency'];
-                                    } elseif (isset($rate['Currency'])) {
-                                        $currency = $rate['Currency'];
-                                    } elseif (isset($rate['@attributes']['Currency'])) {
-                                        $currency = $rate['@attributes']['Currency'];
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                if (defined('WP_DEBUG') && WP_DEBUG && $from_price !== null) {
-                    error_log('Book Your Stay API: Found price ' . $from_price . ' ' . $currency . ' for room ' . $room_code);
                 }
                 
                 // Only add room if we have at least a name or code
                 if (!empty($room_name) || !empty($room_code)) {
-                    $rooms[] = array(
-                        'code' => $room_code,
-                        'name' => !empty($room_name) ? $room_name : $room_code,
+                    $formatted_room = array(
+                        'code' => $room_code ?: 'UNKNOWN',
+                        'name' => !empty($room_name) ? $room_name : ($room_code ?: 'Room'),
                         'description' => $description,
                         'size' => $size,
                         'view' => $view,
@@ -641,19 +711,29 @@ class BYS_API {
                         'from_price' => $from_price,
                         'currency' => $currency
                     );
+                    
+                    $rooms[] = $formatted_room;
+                    
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('Book Your Stay API: Added room - ' . $formatted_room['name'] . ' (Code: ' . $formatted_room['code'] . ', Occupancy: ' . $formatted_room['max_occupancy'] . ', Amenities: ' . count($formatted_room['amenities']) . ')');
+                    }
+                } else {
+                    if (defined('WP_DEBUG') && WP_DEBUG) {
+                        error_log('Book Your Stay API: Skipping room item - no name or code found');
+                    }
                 }
             }
         } else {
             // If no room types found, try to create fallback rooms from available data
             // This helps when API structure is different or API fails but we know rooms exist
             if (defined('WP_DEBUG') && WP_DEBUG) {
-                error_log('Book Your Stay API: No room types found in response. Structure keys: ' . print_r(array_keys($descriptive_info), true));
-                error_log('Book Your Stay API: Full response: ' . print_r($descriptive_info, true));
+                error_log('Book Your Stay API: No room types found in response. Structure keys: ' . print_r(array_keys($rooms_response), true));
+                error_log('Book Your Stay API: Full response: ' . print_r($rooms_response, true));
             }
             
             // Fallback: Create basic room entries if we have hotel code but API structure is unexpected
             // This allows the shortcode to still work and generate booking links
-            if (!empty($params['pcode']) || !empty($params['propertyID'])) {
+            if (!empty($params['pcode'])) {
                 if (defined('WP_DEBUG') && WP_DEBUG) {
                     error_log('Book Your Stay API: Using fallback room generation');
                 }
@@ -678,7 +758,7 @@ class BYS_API {
         if (defined('WP_DEBUG') && WP_DEBUG) {
             error_log('Book Your Stay API: Found ' . count($rooms) . ' rooms');
             if (empty($rooms)) {
-                error_log('Book Your Stay API: Rooms array is empty. Response was: ' . print_r($descriptive_info, true));
+                error_log('Book Your Stay API: Rooms array is empty. Response was: ' . print_r($rooms_response, true));
             }
         }
         
@@ -693,8 +773,19 @@ class BYS_API {
             return null;
         }
         
-        // Check common structures first
+        // Check common structures first (including OTA structure from IDS API)
+        // Based on actual IDS Hotel Descriptive Info API response structure
+        // OTA structure: HotelDescriptiveContents -> HotelDescriptiveContent -> FacilityInfo -> GuestRooms -> GuestRoom
         $structures = array(
+            // Actual OTA IDS API structure (from XML response)
+            'HotelDescriptiveContents.HotelDescriptiveContent.FacilityInfo.GuestRooms.GuestRoom',
+            'OTA_HotelDescriptiveInfoRS.HotelDescriptiveContents.HotelDescriptiveContent.FacilityInfo.GuestRooms.GuestRoom',
+            'HotelDescriptiveContent.FacilityInfo.GuestRooms.GuestRoom',
+            'FacilityInfo.GuestRooms.GuestRoom',
+            'GuestRooms.GuestRoom',
+            // Alternative structures (fallback)
+            'HotelDescriptiveContents.HotelDescriptiveContent.RoomTypes.RoomType',
+            'OTA_HotelDescriptiveInfoRS.HotelDescriptiveContents.HotelDescriptiveContent.RoomTypes.RoomType',
             'HotelDescriptiveInfoRS.HotelDescriptiveInfo.RoomTypes.RoomType',
             'HotelDescriptiveInfoRS.RoomTypes.RoomType',
             'HotelDescriptiveInfo.RoomTypes.RoomType',
@@ -702,6 +793,7 @@ class BYS_API {
             'roomTypes',
             'rooms',
             'RoomType',
+            'GuestRoom',
             'data'
         );
         
@@ -866,6 +958,258 @@ class BYS_API {
             $cache_key = 'bys_room_list_' . md5(serialize($params));
             delete_transient($cache_key);
         }
+    }
+    
+    /**
+     * Get room image from hotel descriptive info (OTA format)
+     * Based on IDS Hotel Descriptive Info API documentation
+     * Uses cached descriptive info to avoid multiple API calls
+     * 
+     * According to OTA standards, images are in MediaItems/MediaItem structure
+     * Reference: https://shrdev.atlassian.net/wiki/spaces/SPD/pages/2014380035/IDS+Hotel+Descriptive+Info
+     */
+    private function get_room_image_from_descriptive_info($room_code, $descriptive_info) {
+        if (empty($room_code) || !$descriptive_info || !is_array($descriptive_info)) {
+            return '';
+        }
+        
+        // Search for room images in descriptive info
+        // Actual OTA structure: HotelDescriptiveContents -> HotelDescriptiveContent -> FacilityInfo -> GuestRooms -> GuestRoom
+        $room_types = $this->find_rooms_in_response($descriptive_info);
+        
+        if ($room_types) {
+            // Ensure it's an array
+            if (!is_array($room_types) || (isset($room_types['@attributes']) && !isset($room_types[0]))) {
+                $room_types = array($room_types);
+            }
+            
+            foreach ($room_types as $room_type) {
+                if (!is_array($room_type)) {
+                    continue;
+                }
+                
+                // Check if this is the room we're looking for
+                // Actual OTA structure: GuestRoom -> TypeRoom -> @attributes.RoomTypeCode
+                // Example: <TypeRoom RoomTypeCode="STUD1" ... />
+                $rt_code = $this->get_nested_value($room_type, array(
+                    'TypeRoom.@attributes.RoomTypeCode',  // Primary path for actual API
+                    'TypeRoom.RoomTypeCode',
+                    'RoomTypeCode', 
+                    '@attributes.RoomTypeCode',
+                    'code', 
+                    'roomCode', 
+                    'roomTypeCode',
+                    '@attributes.code'
+                ));
+                
+                if (defined('WP_DEBUG') && WP_DEBUG) {
+                    error_log('Book Your Stay API: Comparing room codes - Looking for: ' . $room_code . ', Found: ' . $rt_code);
+                }
+                
+                if ($rt_code === $room_code) {
+                    // Found the room, extract image from OTA MultimediaDescriptions structure
+                    // Actual OTA format: GuestRoom -> MultimediaDescriptions -> MultimediaDescription -> ImageItems -> ImageItem -> ImageFormat -> URL
+                    $image_url = $this->extract_ota_room_image($room_type);
+                    
+                    if (!empty($image_url)) {
+                        if (defined('WP_DEBUG') && WP_DEBUG) {
+                            error_log('Book Your Stay API: Found OTA image for room ' . $room_code . ': ' . $image_url);
+                        }
+                        return $image_url;
+                    } else {
+                        if (defined('WP_DEBUG') && WP_DEBUG) {
+                            error_log('Book Your Stay API: Room ' . $room_code . ' matched but no image found. Room keys: ' . print_r(array_keys($room_type), true));
+                        }
+                    }
+                }
+            }
+        } else {
+            if (defined('WP_DEBUG') && WP_DEBUG) {
+                error_log('Book Your Stay API: No room types found in descriptive info. Top level keys: ' . print_r(array_keys($descriptive_info), true));
+            }
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Extract room image from OTA GuestRoom structure
+     * Handles actual IDS API structure: MultimediaDescriptions -> ImageItems -> ImageItem -> ImageFormat -> URL
+     * Based on actual XML response from IDS Hotel Descriptive Info API
+     */
+    private function extract_ota_room_image($room_type) {
+        if (!is_array($room_type)) {
+            return '';
+        }
+        
+        // Actual OTA structure from IDS API:
+        // GuestRoom -> MultimediaDescriptions -> MultimediaDescription -> ImageItems -> ImageItem -> ImageFormat -> URL
+        $image_paths = array(
+            // Actual IDS API structure (primary)
+            'MultimediaDescriptions.MultimediaDescription.ImageItems.ImageItem.0.ImageFormat.URL',
+            'MultimediaDescriptions.MultimediaDescription.ImageItems.ImageItem.ImageFormat.URL',
+            'MultimediaDescriptions.MultimediaDescription.ImageItems.ImageItem.0.ImageFormat.url',
+            'MultimediaDescriptions.MultimediaDescription.ImageItems.ImageItem.ImageFormat.url',
+            // Alternative paths
+            'MultimediaDescriptions.ImageItems.ImageItem.0.ImageFormat.URL',
+            'MultimediaDescriptions.ImageItems.ImageItem.ImageFormat.URL',
+            'ImageItems.ImageItem.0.ImageFormat.URL',
+            'ImageItems.ImageItem.ImageFormat.URL',
+            // Fallback to MediaItems structure (if used)
+            'MediaItems.MediaItem.0.URL',
+            'MediaItems.MediaItem.0.@attributes.URL',
+            'MediaItems.MediaItem.URL',
+            'MediaItems.MediaItem.@attributes.URL',
+            'MediaItems.MediaItem.0.url',
+            'MediaItems.MediaItem.0.@attributes.url',
+            // Images structure (alternative)
+            'Images.Image.0.URL',
+            'Images.Image.0.@attributes.URL',
+            'Images.Image.URL',
+            'Images.Image.@attributes.URL',
+            // Direct image fields
+            'image', 'Image', 'imageUrl', 'imageURL'
+        );
+        
+        // Try each path
+        foreach ($image_paths as $path) {
+            $image_url = $this->get_nested_value($room_type, array($path));
+            if (!empty($image_url)) {
+                return $image_url;
+            }
+        }
+        
+        // Manual extraction for actual IDS API structure
+        // MultimediaDescriptions -> MultimediaDescription -> ImageItems -> ImageItem -> ImageFormat -> URL
+        if (isset($room_type['MultimediaDescriptions']['MultimediaDescription'])) {
+            $multimedia_desc = $room_type['MultimediaDescriptions']['MultimediaDescription'];
+            
+            // Handle array or single MultimediaDescription
+            if (!is_array($multimedia_desc) || (isset($multimedia_desc['@attributes']) && !isset($multimedia_desc[0]))) {
+                $multimedia_desc = array($multimedia_desc);
+            }
+            
+            foreach ($multimedia_desc as $desc) {
+                if (!is_array($desc) || !isset($desc['ImageItems']['ImageItem'])) {
+                    continue;
+                }
+                
+                $image_items = $desc['ImageItems']['ImageItem'];
+                
+                // Ensure it's an array
+                if (!is_array($image_items) || (isset($image_items['@attributes']) && !isset($image_items[0]))) {
+                    $image_items = array($image_items);
+                }
+                
+                // Get first image from ImageItems
+                foreach ($image_items as $image_item) {
+                    if (!is_array($image_item)) {
+                        continue;
+                    }
+                    
+                    // Check for ImageFormat -> URL structure
+                    if (isset($image_item['ImageFormat']['URL'])) {
+                        return $image_item['ImageFormat']['URL'];
+                    } elseif (isset($image_item['ImageFormat']['url'])) {
+                        return $image_item['ImageFormat']['url'];
+                    } elseif (isset($image_item['ImageFormat'][0]['URL'])) {
+                        return $image_item['ImageFormat'][0]['URL'];
+                    } elseif (isset($image_item['ImageFormat'][0]['url'])) {
+                        return $image_item['ImageFormat'][0]['url'];
+                    }
+                }
+            }
+        }
+        
+        // Fallback: Try MediaItems structure (if used)
+        if (isset($room_type['MediaItems']['MediaItem'])) {
+            $media_items = $room_type['MediaItems']['MediaItem'];
+            
+            if (!is_array($media_items) || (isset($media_items['@attributes']) && !isset($media_items[0]))) {
+                $media_items = array($media_items);
+            }
+            
+            foreach ($media_items as $media_item) {
+                if (!is_array($media_item)) {
+                    continue;
+                }
+                
+                if (isset($media_item['URL'])) {
+                    return $media_item['URL'];
+                } elseif (isset($media_item['url'])) {
+                    return $media_item['url'];
+                } elseif (isset($media_item['@attributes']['URL'])) {
+                    return $media_item['@attributes']['URL'];
+                }
+            }
+        }
+        
+        // Fallback: Try Images structure
+        if (isset($room_type['Images']['Image'])) {
+            $images = $room_type['Images']['Image'];
+            if (!is_array($images) || (isset($images['@attributes']) && !isset($images[0]))) {
+                $images = array($images);
+            }
+            
+            foreach ($images as $image) {
+                if (!is_array($image)) {
+                    continue;
+                }
+                
+                if (isset($image['URL'])) {
+                    return $image['URL'];
+                } elseif (isset($image['url'])) {
+                    return $image['url'];
+                } elseif (isset($image['@attributes']['URL'])) {
+                    return $image['@attributes']['URL'];
+                }
+            }
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Helper method to get nested value from array using multiple possible keys
+     * Supports dot notation for nested keys (e.g., 'Images.Image.0.URL')
+     */
+    private function get_nested_value($data, $keys, $default = null) {
+        if (!is_array($data) || empty($keys)) {
+            return $default;
+        }
+        
+        foreach ($keys as $key) {
+            // Handle dot notation for nested keys
+            if (strpos($key, '.') !== false) {
+                $parts = explode('.', $key);
+                $value = $data;
+                $found = true;
+                
+                foreach ($parts as $part) {
+                    if (is_numeric($part)) {
+                        $part = intval($part);
+                    }
+                    
+                    if (is_array($value) && (isset($value[$part]) || (is_numeric($part) && isset($value[intval($part)])))) {
+                        $value = $value[$part];
+                    } else {
+                        $found = false;
+                        break;
+                    }
+                }
+                
+                if ($found && $value !== null && $value !== '') {
+                    return $value;
+                }
+            } else {
+                // Simple key lookup
+                if (isset($data[$key]) && $data[$key] !== null && $data[$key] !== '') {
+                    return $data[$key];
+                }
+            }
+        }
+        
+        return $default;
     }
 }
 

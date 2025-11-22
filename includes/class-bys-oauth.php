@@ -91,11 +91,16 @@ class BYS_OAuth {
         
         // Try different scope combinations - some APIs require specific scopes
         // Based on working Postman config: wsapi.guestrequests.read works
+        // Room API requires: wsapi.hoteldetails.read
         $scope_variations = array(
-            'wsapi.guestrequests.read', // This works in Postman - try first
+            'wsapi.hoteldetails.read', // Required for room API endpoint - try first
+            'wsapi.hoteldetails.read wsapi.guestrequests.read wsapi.shop.ratecalendar', // All scopes combined
+            'wsapi.hoteldetails.read wsapi.guestrequests.read', // Room + guest requests
+            'wsapi.hoteldetails.read wsapi.shop.ratecalendar', // Room + shop
+            'wsapi.guestrequests.read', // Guest requests (fallback)
             'wsapi.guestrequests.read wsapi.shop.ratecalendar', // Original combined
             'wsapi.shop.ratecalendar', // Just shop
-            '', // No scope
+            '', // No scope (last resort)
         );
         
         $last_error = null;
@@ -406,7 +411,8 @@ class BYS_OAuth {
             : 'https://iduat.shrglobal.com/connect/token';
         
         // SHR API requires credentials in request body (form-encoded)
-        $scope = 'wsapi.guestrequests.read wsapi.shop.ratecalendar';
+        // Include all required scopes: room API needs wsapi.hoteldetails.read
+        $scope = 'wsapi.hoteldetails.read wsapi.guestrequests.read wsapi.shop.ratecalendar';
         $body = array(
             'client_id' => $client_id,
             'client_secret' => $client_secret,
@@ -553,6 +559,15 @@ class BYS_OAuth {
         delete_option($this->token_expiry_key);
         delete_option($this->refresh_token_key);
         delete_option($this->refresh_token_expiry_key);
+        delete_option('bys_last_oauth_error');
+    }
+    
+    /**
+     * Force fetch new token with specific scope (clears cache first)
+     */
+    public function force_refresh_token() {
+        $this->clear_token();
+        return $this->get_access_token();
     }
     
     /**
