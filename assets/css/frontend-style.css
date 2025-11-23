@@ -4,6 +4,62 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Playfair:ital,opsz,wght@0,5..1200,300..900;1,5..1200,300..900&display=swap');
 
+.bys-booking-widget-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+/* Mobile Toggle Button */
+.bys-mobile-toggle-btn {
+    display: none;
+    width: 100%;
+    padding: 24px 30px;
+    background-color: #FAFAFA;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: "Playfair", serif !important;
+    font-size: 16px;
+    font-weight: 400;
+    color: #462801;
+    text-align: left;
+    position: relative;
+    transition: all 0.3s ease;
+    align-items: center;
+    gap: 10px;
+    justify-content: flex-start;
+}
+
+.bys-mobile-toggle-btn:hover {
+    background-color: #f1ece5;
+}
+
+.bys-mobile-toggle-icon {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.bys-mobile-toggle-text {
+    font-size: 28px;
+    flex: 1;
+    text-align: left;
+    font-family: "Playfair", serif !important;
+    color: #462801;
+}
+
+.bys-mobile-toggle-chevron {
+    display: flex;
+    align-items: center;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+    transform: rotate(0deg);
+}
+
+.bys-mobile-toggle-btn[aria-expanded="true"] .bys-mobile-toggle-chevron {
+    transform: rotate(-90deg);
+}
+
 .bys-booking-widget {
     width: 100%;
     max-width: 353px;
@@ -14,6 +70,7 @@
     margin-left: auto;
     position: relative;
     overflow: visible;
+    display: block;
 }
 
 .bys-booking-widget .bys-booking-header {
@@ -623,9 +680,23 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-    .bys-booking-widget .bys-booking-widget {
+    .bys-mobile-toggle-btn {
+        display: flex;
+    }
+
+    .bys-booking-widget {
+        display: none !important;
         padding: 25px 20px;
-        margin: 15px;
+        /* margin: 15px 0 0 0; */
+        max-width: 100%;
+    }
+
+    .bys-booking-widget-wrapper {
+        max-width: 100%;
+    }
+
+    .bys-booking-widget-wrapper.active .bys-booking-widget {
+        display: block !important;
     }
 
     .bys-booking-widget .bys-booking-fields {
@@ -647,7 +718,12 @@
 }
 
 @media (max-width: 480px) {
-    .bys-booking-widget .bys-booking-widget {
+    .bys-mobile-toggle-btn {
+        padding: 14px 16px;
+        font-size: 15px;
+    }
+
+    .bys-booking-widget {
         padding: 20px 15px;
     }
 
