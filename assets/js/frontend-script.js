@@ -72,8 +72,27 @@
             static: false,
             monthSelectorType: 'dropdown',
             animate: true,
+            locale: {
+                firstDayOfWeek: 0 // Start week on Sunday (0 = Sunday, 1 = Monday)
+            },
             onReady: function(selectedDates, dateStr, instance) {
                 addCustomFooter(instance);
+                // Ensure proper alignment after render
+                setTimeout(function() {
+                    instance.redraw();
+                    // Force alignment fix
+                    var calendar = instance.calendarContainer;
+                    if (calendar) {
+                        var weekdays = calendar.querySelector('.flatpickr-weekdays');
+                        var days = calendar.querySelector('.flatpickr-days');
+                        if (weekdays && days) {
+                            // Ensure both have same width
+                            var width = Math.max(weekdays.offsetWidth, days.offsetWidth);
+                            weekdays.style.width = width + 'px';
+                            days.style.width = width + 'px';
+                        }
+                    }
+                }, 50);
             },
             onChange: function(selectedDates, dateStr, instance) {
                 // Update checkout minimum date
@@ -112,8 +131,27 @@
             static: false,
             monthSelectorType: 'dropdown',
             animate: true,
+            locale: {
+                firstDayOfWeek: 0 // Start week on Sunday (0 = Sunday, 1 = Monday)
+            },
             onReady: function(selectedDates, dateStr, instance) {
                 addCustomFooter(instance);
+                // Ensure proper alignment after render
+                setTimeout(function() {
+                    instance.redraw();
+                    // Force alignment fix
+                    var calendar = instance.calendarContainer;
+                    if (calendar) {
+                        var weekdays = calendar.querySelector('.flatpickr-weekdays');
+                        var days = calendar.querySelector('.flatpickr-days');
+                        if (weekdays && days) {
+                            // Ensure both have same width
+                            var width = Math.max(weekdays.offsetWidth, days.offsetWidth);
+                            weekdays.style.width = width + 'px';
+                            days.style.width = width + 'px';
+                        }
+                    }
+                }, 50);
             }
         });
         

@@ -34,16 +34,19 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
                 <div class="bys-room-card <?php echo $is_fallback ? 'bys-room-card-fallback' : ''; ?>">
                     <?php if (!empty($room['image'])): ?>
                         <div class="bys-room-image">
-                            <img src="<?php echo esc_url($room['image']); ?>" 
-                                 alt="<?php echo esc_attr($room['name']); ?>"
-                                 loading="lazy">
+                            <?php //echo esc_url($room['image']); ?>
+                            <img src="https://dhr.4shaw-development.co/le-franschhoek-hotel-spa/wp-content/uploads/sites/2/2025/03/202203082109130.ROOM_26_2-1-1024x682.jpg"
+                                alt="<?php echo esc_attr($room['name']); ?>" loading="lazy">
                             <?php if ($room['from_price'] !== null): ?>
                                 <div class="bys-room-price-badge">
-                                    <?php 
+                                    <?php
                                     $currency_symbol = 'R'; // Default for ZAR
-                                    if ($room['currency'] === 'USD') $currency_symbol = '$';
-                                    elseif ($room['currency'] === 'EUR') $currency_symbol = '€';
-                                    elseif ($room['currency'] === 'GBP') $currency_symbol = '£';
+                                    if ($room['currency'] === 'USD')
+                                        $currency_symbol = '$';
+                                    elseif ($room['currency'] === 'EUR')
+                                        $currency_symbol = '€';
+                                    elseif ($room['currency'] === 'GBP')
+                                        $currency_symbol = '£';
                                     ?>
                                     <span class="bys-price-label"><?php _e('FROM', 'book-your-stay'); ?></span>
                                     <span class="bys-price-amount">
@@ -56,16 +59,19 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
                     <?php else: ?>
                         <!-- Show placeholder when no image is available -->
                         <div class="bys-room-image bys-room-image-placeholder">
-                            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #8B4513; font-size: 48px;">
-                                🏨
-                            </div>
+                            <?php //echo esc_url($room['image']); ?>
+                            <img src="https://dhr.4shaw-development.co/le-franschhoek-hotel-spa/wp-content/uploads/sites/2/2025/03/202203082109130.ROOM_26_2-1-1024x682.jpg"
+                                alt="<?php echo esc_attr($room['name']); ?>" loading="lazy">
                             <?php if ($room['from_price'] !== null): ?>
                                 <div class="bys-room-price-badge">
-                                    <?php 
+                                    <?php
                                     $currency_symbol = 'R'; // Default for ZAR
-                                    if ($room['currency'] === 'USD') $currency_symbol = '$';
-                                    elseif ($room['currency'] === 'EUR') $currency_symbol = '€';
-                                    elseif ($room['currency'] === 'GBP') $currency_symbol = '£';
+                                    if ($room['currency'] === 'USD')
+                                        $currency_symbol = '$';
+                                    elseif ($room['currency'] === 'EUR')
+                                        $currency_symbol = '€';
+                                    elseif ($room['currency'] === 'GBP')
+                                        $currency_symbol = '£';
                                     ?>
                                     <span class="bys-price-label"><?php _e('FROM', 'book-your-stay'); ?></span>
                                     <span class="bys-price-amount">
@@ -76,13 +82,13 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>
-                    
+
                     <div class="bys-room-content">
                         <h3 class="bys-room-title"><?php echo esc_html($room['name']); ?></h3>
-                        
+
                         <?php if (!empty($room['size']) || !empty($room['view']) || !empty($room['max_occupancy'])): ?>
                             <div class="bys-room-specs">
-                                <?php 
+                                <?php
                                 $specs = array();
                                 if (!empty($room['size'])) {
                                     $specs[] = esc_html($room['size']);
@@ -99,13 +105,13 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
                                 ?>
                             </div>
                         <?php endif; ?>
-                        
+
                         <?php if (!empty($room['amenities']) && is_array($room['amenities'])): ?>
-                            <div class="bys-room-amenities">
+                            <ul class="bys-room-amenities">
                                 <?php foreach (array_slice($room['amenities'], 0, 4) as $amenity): ?>
-                                    <div class="bys-room-amenity-item">
+                                    <li class="bys-room-amenity-item">
                                         <span class="bys-amenity-icon">
-                                            <?php 
+                                            <?php
                                             // Map common amenities to icons
                                             $amenity_lower = strtolower($amenity);
                                             if (strpos($amenity_lower, 'heating') !== false || strpos($amenity_lower, 'bathroom') !== false) {
@@ -117,46 +123,42 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
                                             } elseif (strpos($amenity_lower, 'safe') !== false) {
                                                 echo '🔒';
                                             } else {
-                                                echo '✓';
+                                                echo '<i class="fa-dhr-bathroom"></i>';
                                             }
                                             ?>
                                         </span>
                                         <span class="bys-amenity-text"><?php echo esc_html($amenity); ?></span>
-                                    </div>
+                                    </li>
                                 <?php endforeach; ?>
-                            </div>
+                            </ul>
                         <?php endif; ?>
-                        
+
                         <?php if (!empty($room['description'])): ?>
                             <div class="bys-room-description">
-                                <?php 
+                                <?php
                                 $description = wp_trim_words($room['description'], 25, '...');
-                                echo esc_html($description); 
+                                echo esc_html($description);
                                 ?>
                             </div>
                         <?php endif; ?>
-                        
+
                         <div class="bys-room-actions">
                             <?php if ($is_fallback && !empty($room['booking_url'])): ?>
                                 <!-- Fallback: Direct link to booking engine -->
-                                <a href="<?php echo esc_url($room['booking_url']); ?>" 
-                                   class="bys-book-now-button"
-                                   target="_blank">
-                                    <?php _e('View Available Rooms & Book Now', 'book-your-stay'); ?> &gt;
+                                <a href="<?php echo esc_url($room['booking_url']); ?>" class="bys-book-now-button" target="_blank">
+                                    <?php _e('View Available Rooms & Book Now', 'book-your-stay'); ?>
                                 </a>
                             <?php else: ?>
                                 <!-- Normal: Generate deep link via AJAX -->
-                                <a href="#" 
-                                   class="bys-book-now-link" 
-                                   data-room-code="<?php echo esc_attr($room['code']); ?>"
-                                   data-hotel-code="<?php echo esc_attr($hotel_code); ?>"
-                                   data-property-id="<?php echo esc_attr($property_id); ?>"
-                                   data-checkin="<?php echo esc_attr($default_checkin); ?>"
-                                   data-checkout="<?php echo esc_attr($default_checkout); ?>"
-                                   data-adults="<?php echo esc_attr($default_adults); ?>"
-                                   data-children="<?php echo esc_attr($default_children); ?>"
-                                   data-rooms="<?php echo esc_attr($default_rooms); ?>">
-                                    <?php _e('Book Now', 'book-your-stay'); ?> &gt;
+                                <a href="#" class="bys-book-now-link" data-room-code="<?php echo esc_attr($room['code']); ?>"
+                                    data-hotel-code="<?php echo esc_attr($hotel_code); ?>"
+                                    data-property-id="<?php echo esc_attr($property_id); ?>"
+                                    data-checkin="<?php echo esc_attr($default_checkin); ?>"
+                                    data-checkout="<?php echo esc_attr($default_checkout); ?>"
+                                    data-adults="<?php echo esc_attr($default_adults); ?>"
+                                    data-children="<?php echo esc_attr($default_children); ?>"
+                                    data-rooms="<?php echo esc_attr($default_rooms); ?>">
+                                    <?php _e('Book Now', 'book-your-stay'); ?>
                                 </a>
                             <?php endif; ?>
                         </div>
@@ -168,85 +170,84 @@ $default_rooms = !empty($atts['rooms']) ? intval($atts['rooms']) : 1;
 </div>
 
 <script type="text/javascript">
-(function($) {
-    'use strict';
-    
-    function initRoomBooking() {
-        if (typeof $ === 'undefined' || typeof jQuery === 'undefined') {
-            setTimeout(initRoomBooking, 100);
-            return;
-        }
-        
-        $('.bys-book-now-link, .bys-book-now-button').on('click', function(e) {
-            e.preventDefault();
-            
-            var $button = $(this);
-            var originalText = $button.text();
-            $button.prop('disabled', true).text('<?php esc_attr_e('Loading...', 'book-your-stay'); ?>');
-            
-            // Get booking parameters
-            var params = {
-                checkin: $button.data('checkin'),
-                checkout: $button.data('checkout'),
-                adults: $button.data('adults'),
-                children: $button.data('children'),
-                rooms: $button.data('rooms')
-            };
-            
-            // Add hotel identification
-            if ($button.data('hotel-code')) {
-                params.pcode = $button.data('hotel-code');
+    (function ($) {
+        'use strict';
+
+        function initRoomBooking() {
+            if (typeof $ === 'undefined' || typeof jQuery === 'undefined') {
+                setTimeout(initRoomBooking, 100);
+                return;
             }
-            if ($button.data('property-id')) {
-                params.propertyID = parseInt($button.data('property-id'));
-            }
-            
-            // Generate deep link
-            var ajaxUrl = (typeof bysData !== 'undefined' && bysData.ajaxUrl) ? bysData.ajaxUrl : '<?php echo admin_url('admin-ajax.php'); ?>';
-            var nonce = (typeof bysData !== 'undefined' && bysData.nonce) ? bysData.nonce : '<?php echo wp_create_nonce('bys_booking_nonce'); ?>';
-            
-            $.ajax({
-                url: ajaxUrl,
-                type: 'POST',
-                data: {
-                    action: 'bys_generate_deep_link',
-                    nonce: nonce,
-                    checkin: params.checkin,
-                    checkout: params.checkout,
-                    adults: params.adults,
-                    children: params.children,
-                    rooms: params.rooms,
-                    hotel_code: params.pcode || '',
-                    property_id: params.propertyID || ''
-                },
-                success: function(response) {
-                    if (response.success && response.data.link) {
-                        window.location.href = response.data.link;
-                    } else {
+
+            $('.bys-book-now-link, .bys-book-now-button').on('click', function (e) {
+                e.preventDefault();
+
+                var $button = $(this);
+                var originalText = $button.text();
+                $button.prop('disabled', true).text('<?php esc_attr_e('Loading...', 'book-your-stay'); ?>');
+
+                // Get booking parameters
+                var params = {
+                    checkin: $button.data('checkin'),
+                    checkout: $button.data('checkout'),
+                    adults: $button.data('adults'),
+                    children: $button.data('children'),
+                    rooms: $button.data('rooms')
+                };
+
+                // Add hotel identification
+                if ($button.data('hotel-code')) {
+                    params.pcode = $button.data('hotel-code');
+                }
+                if ($button.data('property-id')) {
+                    params.propertyID = parseInt($button.data('property-id'));
+                }
+
+                // Generate deep link
+                var ajaxUrl = (typeof bysData !== 'undefined' && bysData.ajaxUrl) ? bysData.ajaxUrl : '<?php echo admin_url('admin-ajax.php'); ?>';
+                var nonce = (typeof bysData !== 'undefined' && bysData.nonce) ? bysData.nonce : '<?php echo wp_create_nonce('bys_booking_nonce'); ?>';
+
+                $.ajax({
+                    url: ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'bys_generate_deep_link',
+                        nonce: nonce,
+                        checkin: params.checkin,
+                        checkout: params.checkout,
+                        adults: params.adults,
+                        children: params.children,
+                        rooms: params.rooms,
+                        hotel_code: params.pcode || '',
+                        property_id: params.propertyID || ''
+                    },
+                    success: function (response) {
+                        if (response.success && response.data.link) {
+                            window.location.href = response.data.link;
+                        } else {
+                            alert('<?php esc_attr_e('Error generating booking link. Please try again.', 'book-your-stay'); ?>');
+                            $button.prop('disabled', false).text(originalText);
+                        }
+                    },
+                    error: function () {
                         alert('<?php esc_attr_e('Error generating booking link. Please try again.', 'book-your-stay'); ?>');
                         $button.prop('disabled', false).text(originalText);
                     }
-                },
-                error: function() {
-                    alert('<?php esc_attr_e('Error generating booking link. Please try again.', 'book-your-stay'); ?>');
-                    $button.prop('disabled', false).text(originalText);
-                }
+                });
             });
-        });
-    }
-    
-    // Initialize when DOM is ready
-    if (typeof jQuery !== 'undefined') {
-        jQuery(document).ready(function($) {
-            initRoomBooking();
-        });
-    } else {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initRoomBooking);
-        } else {
-            initRoomBooking();
         }
-    }
-})(typeof jQuery !== 'undefined' ? jQuery : null);
-</script>
 
+        // Initialize when DOM is ready
+        if (typeof jQuery !== 'undefined') {
+            jQuery(document).ready(function ($) {
+                initRoomBooking();
+            });
+        } else {
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initRoomBooking);
+            } else {
+                initRoomBooking();
+            }
+        }
+    })(typeof jQuery !== 'undefined' ? jQuery : null);
+</script>
