@@ -116,7 +116,7 @@
     border: 1px solid #DFEFF980;
     border-radius: 4px;
     padding: 0 14px;
-    padding-right: 55px;
+    /* padding-right: 55px; */
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
@@ -165,7 +165,7 @@
 
 /* Custom Date Picker Styles */
 .bys-booking-widget-wrapper .bys-date-field {
-    padding-right: 55px;
+    padding-right: 40px;
 }
 
 .bys-booking-widget-wrapper .bys-date-picker-wrapper {
@@ -174,6 +174,7 @@
     height: 100%;
     display: flex;
     align-items: center;
+    justify-content: flex-start;
     flex: 1;
     cursor: pointer;
     text-align: right;
@@ -188,7 +189,7 @@
     padding: 0;
     border: 0;
     border-radius: 0;
-    font-size: 12px;
+    font-size: 14px;
     background: transparent;
     color: #FAFAFA;
     width: 100%;
@@ -545,6 +546,9 @@
     width: 100%;
     height: 100%;
     cursor: pointer;
+    background: transparent;
+    border: none;
+    white-space: nowrap;
 }
 
 .bys-booking-widget-wrapper .custom-select .selected-value {
@@ -554,7 +558,7 @@
     height: 100%;
     align-items: center;
     justify-content: space-between;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 16px;
     color: #FAFAFA;
@@ -680,6 +684,12 @@
 
 .bys-booking-widget-wrapper .bys-booking-field:has(.custom-select.active) label {
     color: #062943;
+}
+
+.bys-booking-widget-wrapper {
+    bottom: 14px !important;
+    right: 50% !important;
+    transform: translateX(-50%) !important;
 }
 
 /* Responsive Design */
