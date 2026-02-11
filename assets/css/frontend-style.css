@@ -9,6 +9,16 @@
     width: 100%;
 }
 
+@media (max-width: 1023px) {
+    .hero-banner-booking {
+        top: auto !important;
+        left: 75% !important;
+        bottom: 14px !important;
+        width: calc(100vw - 32px) !important;
+        transform: translateX(-50%) !important;
+    }
+}
+
 /* Mobile Toggle Button */
 .bys-booking-widget-wrapper .bys-mobile-toggle-btn {
     display: none;
@@ -686,16 +696,22 @@
     color: #062943;
 }
 
-.bys-booking-widget-wrapper {
-    bottom: 14px !important;
-    right: 50% !important;
-    transform: translateX(-50%) !important;
-}
+/* @media (max-width: 1023px) {
+    .bys-booking-widget-wrapper {
+        bottom: 14px !important;
+        right: 50% !important;
+        transform: translateX(-50%) !important;
+    }
+} */
 
 /* Responsive Design */
 @media (max-width: 768px) {
     .bys-booking-widget-wrapper .bys-mobile-toggle-btn {
         display: flex;
+    }
+
+    .bys-booking-widget-wrapper .bys-mobile-toggle-text {
+        font-size: 18px;
     }
 
     .bys-booking-widget-wrapper .bys-booking-widget {
@@ -783,6 +799,15 @@
 @media (max-width: 767px) {
     .bys-hotel-rooms .bys-rooms-grid {
         grid-template-columns: repeat(1, 1fr);
+    }
+
+    .bys-mobile-toggle-icon svg {
+        height: 24px;
+        width: 24px;
+    }
+
+    .hero__booking-content {
+        padding-bottom: 70px;
     }
 }
 
