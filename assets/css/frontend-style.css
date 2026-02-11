@@ -2,11 +2,41 @@
  * Frontend styles for Book Your Stay
  */
 
+.hero-slider-cmn {
+    position: relative !important;
+}
+
+.hero-slider-cmn .swiper-slide > .elementor-element {
+    background-attachment: fixed;
+}
+
+.hero-push-down-cmn {
+    margin-top: 0 !important;
+}
+
+.hero-push-down-cmn > .elementor-element {
+    margin: -50px 0px 0px 0px;
+}
+
+.hero-push-down-cmn > .elementor-element .elementor-widget-container {
+    margin: unset !important;
+}
+
 @import url('https://fonts.googleapis.com/css2?family=Playfair:ital,opsz,wght@0,5..1200,300..900;1,5..1200,300..900&display=swap');
 
 .bys-booking-widget-wrapper {
     position: relative;
     width: 100%;
+}
+
+@media (max-width: 1023px) {
+    .bys-hotel-rooms .hero-banner-booking {
+        top: auto !important;
+        left: 75% !important;
+        bottom: 14px !important;
+        width: calc(100vw - 32px) !important;
+        transform: translateX(-50%) !important;
+    }
 }
 
 /* Mobile Toggle Button */
@@ -28,6 +58,12 @@
     align-items: center;
     gap: 10px;
     justify-content: flex-start;
+}
+
+@media (max-width: 767px) {
+    .bys-booking-widget-wrapper .bys-mobile-toggle-btn {
+        padding: 15px 30px;
+    }   
 }
 
 .bys-booking-widget-wrapper .bys-mobile-toggle-btn:hover {
@@ -69,7 +105,7 @@
     padding: 50px 34px;
     margin-left: auto;
     position: relative;
-    overflow: visible;
+    overflow: visible !important;
     display: block;
 }
 
@@ -112,7 +148,7 @@
 .bys-booking-widget-wrapper .bys-booking-field {
     position: relative;
     width: 100%;
-    height: 48px;
+    height: 46px;
     border: 1px solid #DFEFF980;
     border-radius: 4px;
     padding: 0 14px;
@@ -164,9 +200,9 @@
 }
 
 /* Custom Date Picker Styles */
-.bys-booking-widget-wrapper .bys-date-field {
+/* .bys-booking-widget-wrapper .bys-date-field {
     padding-right: 40px;
-}
+} */
 
 .bys-booking-widget-wrapper .bys-date-picker-wrapper {
     position: relative;
@@ -514,9 +550,9 @@
 .bys-booking-widget-wrapper .bys-booking-button {
     font-family: "Open Sans", sans-serif !important;
     width: 100%;
-    height: 48px;
+    height: 40px;
     padding: 5px 20px;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 24px;
     background-color: #F1EDE9;
@@ -686,16 +722,109 @@
     color: #062943;
 }
 
-.bys-booking-widget-wrapper {
-    bottom: 14px !important;
-    right: 50% !important;
-    transform: translateX(-50%) !important;
+/* @media (max-width: 1023px) {
+    .bys-booking-widget-wrapper {
+        bottom: 14px !important;
+        right: 50% !important;
+        transform: translateX(-50%) !important;
+    }
+} */
+
+@media (min-width: 1440px) {
+    .hero-banner-booking {
+        top: 55% !important;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 1440px) {
+    #hero-slider {
+        /* position: static !important;
+        min-height: 140vh !important; */
+    }
+
+    #hero-slider .swiper-wrapper {
+        /* min-height: 150vh !important; */
+    }
+
+    #hero-slider .elementor-widget-n-carousel .e-n-carousel {
+        /* min-height: 150vh !important; */
+    }
+
+    .push-down {
+        margin-top: 0 !important;
+    }
+
+    .hero-banner-booking {
+        top: 55% !important;
+    }
+
+    .bys-booking-widget-wrapper .bys-date-field:nth-child(2) .bys-custom-calendar {
+        top: -140px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    .bys-booking-widget-wrapper .open {
+        top: -140px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+}
+
+@media (max-width: 1023px) {
+    .bys-booking-widget-wrapper .bys-custom-calendar {
+        top: auto;
+        left: -18px;
+    }
+}
+@media (max-width: 767px) {
+    .hero__booking-content .elementor-heading-title.elementor-size-default br {
+        display: none !important;
+    }
+    .hero__booking-content .elementor-widget-container br {
+        display: none !important;
+    }
+    .hero__booking-content .elementor-element.e-con-full.e-con.e-child  {
+        padding-bottom: 60px !important;
+    }
+    .bys-booking-widget-wrapper .bys-booking-header {
+        display: none !important;
+    }
+    .hero-banner-booking  {
+        width: calc(100% - 40px);
+        left: 50%;
+        transform: translateX(-50%) !important;
+        right: unset !important;
+        bottom: 20px !important;
+        top: unset !important;
+    }
+
+    .bys-booking-widget {
+        border-radius: 0 0 4px 4px !important;
+        overflow: hidden !important;
+    }
+    .bys-booking-widget-wrapper .bys-mobile-toggle-btn[aria-expanded="true"] {
+        border-radius: 4px 4px 0 0;
+    }
+    .bys-booking-widget-wrapper .bys-date-field:nth-child(2) .bys-custom-calendar {
+        top: -190px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    .bys-booking-widget-wrapper .open {
+        top: -123px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
     .bys-booking-widget-wrapper .bys-mobile-toggle-btn {
         display: flex;
+    }
+
+    .bys-booking-widget-wrapper .bys-mobile-toggle-text {
+        font-size: 18px;
     }
 
     .bys-booking-widget-wrapper .bys-booking-widget {
@@ -707,6 +836,7 @@
 
     .bys-booking-widget-wrapper {
         max-width: 100%;
+        border-radius: 4px !important;
     }
 
     .bys-booking-widget-wrapper.active .bys-booking-widget {

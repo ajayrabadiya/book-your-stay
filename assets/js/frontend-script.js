@@ -5,7 +5,10 @@
 
 (function($) {
     'use strict';
-    
+
+    // Keep track of all calendar instances so only one can be open at a time
+    var allCalendars = [];
+
     // Custom Calendar Class
     function CustomCalendar(input, options) {
         this.input = $(input);
@@ -24,6 +27,7 @@
         this.calendar = null;
         this.isOpen = false;
         
+        allCalendars.push(this);
         this.init();
     }
     
@@ -34,9 +38,14 @@
             var $field = this.input.closest('.bys-date-field');
             var $icon = $field.find('.bys-date-icon');
             
-            // Create calendar container
-            this.calendar = $('<div class="bys-custom-calendar"></div>');
-            $field.append(this.calendar);
+            // Reuse existing calendar div if present (prevents duplicate headers when only one should show)
+            var $existing = $field.find('.bys-custom-calendar');
+            if ($existing.length) {
+                this.calendar = $existing.first();
+            } else {
+                this.calendar = $('<div class="bys-custom-calendar"></div>');
+                $field.append(this.calendar);
+            }
             
             // Store references
             this.$field = $field;
@@ -44,33 +53,17 @@
             
             // Build calendar
             this.render();
-            
-            // Click handler for input and wrapper (but not icon)
+
+            // Single click handler on wrapper only: open/close this calendar (one place = one toggle, no double fire)
             $wrapper.on('click', function(e) {
-                // Don't trigger if clicking the icon (it has its own handler)
-                if ($(e.target).closest('.bys-date-icon').length) {
-                    return;
-                }
-                e.stopPropagation();
-                self.toggle();
-            });
-            
-            // Separate click handler for icon
-            $icon.on('click', function(e) {
-                e.stopPropagation();
                 e.preventDefault();
-                self.toggle();
-            });
-            
-            // Also handle input click
-            this.input.on('click', function(e) {
                 e.stopPropagation();
                 self.toggle();
             });
             
-            // Close on outside click
+            // Close on outside click (any click not inside this date field)
             $(document).on('click.calendar-' + this.input.attr('id'), function(e) {
-                if (!$(e.target).closest('.bys-date-field').length && self.isOpen) {
+                if (!$(e.target).closest(self.$field[0]).length && self.isOpen) {
                     self.close();
                 }
             });
@@ -168,6 +161,29 @@
         
         bindEvents: function() {
             var self = this;
+            var navThrottleTimer = null;
+            var navPendingRender = false;
+
+            // Apply month change on each click; throttle re-renders so rapid clicks don't hang (first click renders immediately)
+            function doNavAndScheduleRender(direction) {
+                if (direction === 'prev') {
+                    self.currentDate.setMonth(self.currentDate.getMonth() - 1);
+                } else {
+                    self.currentDate.setMonth(self.currentDate.getMonth() + 1);
+                }
+                if (navThrottleTimer) {
+                    navPendingRender = true;
+                    return;
+                }
+                self.render();
+                navThrottleTimer = setTimeout(function() {
+                    navThrottleTimer = null;
+                    if (navPendingRender) {
+                        navPendingRender = false;
+                        self.render();
+                    }
+                }, 120);
+            }
             
             // Month/Year selectors - use event delegation
             this.calendar.off('change', '.bys-calendar-month-select, .bys-calendar-year-select')
@@ -178,19 +194,17 @@
                     self.render();
                 });
             
-            // Navigation buttons - use event delegation
+            // Navigation buttons - throttle re-render so multiple clicks don't hang the screen
             this.calendar.off('click', '.bys-calendar-prev, .bys-calendar-next')
                 .on('click', '.bys-calendar-prev', function(e) {
                     e.stopPropagation();
                     e.preventDefault();
-                    self.currentDate.setMonth(self.currentDate.getMonth() - 1);
-                    self.render();
+                    doNavAndScheduleRender('prev');
                 })
                 .on('click', '.bys-calendar-next', function(e) {
                     e.stopPropagation();
                     e.preventDefault();
-                    self.currentDate.setMonth(self.currentDate.getMonth() + 1);
-                    self.render();
+                    doNavAndScheduleRender('next');
                 });
             
             // Day selection - use event delegation to handle re-renders
@@ -236,6 +250,15 @@
         },
         
         open: function() {
+            // Close any other open calendar so only one is open at a time
+            for (var i = 0; i < allCalendars.length; i++) {
+                if (allCalendars[i] !== this && allCalendars[i].isOpen) {
+                    allCalendars[i].close();
+                }
+            }
+            // Ensure no other calendar in the widget is visible (remove .open from all others)
+            this.$field.closest('.bys-booking-widget-wrapper').find('.bys-custom-calendar').not(this.calendar).removeClass('open');
+            this.$field.closest('.bys-booking-widget-wrapper').find('.bys-date-field').not(this.$field).removeClass('calendar-open');
             this.isOpen = true;
             this.calendar.addClass('open');
             this.$field.addClass('calendar-open');
