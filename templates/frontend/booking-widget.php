@@ -221,13 +221,32 @@ $default_checkout = date('Y-m-d', strtotime('+3 days'));
                 var ajaxUrl = (typeof bysData !== 'undefined' && bysData.ajaxUrl) ? bysData.ajaxUrl : '<?php echo admin_url('admin-ajax.php'); ?>';
                 var nonce = (typeof bysData !== 'undefined' && bysData.nonce) ? bysData.nonce : '<?php echo wp_create_nonce('bys_booking_nonce'); ?>';
 
+                // Extract adults and children from hidden guests field (JSON)
+                var guestsRaw = $('#bys-guests').val();
+                var adultsVal = 1;
+                var childrenVal = 0;
+
+                if (guestsRaw) {
+                    try {
+                        var guestsObj = JSON.parse(guestsRaw);
+                        if (typeof guestsObj.adults !== 'undefined') {
+                            adultsVal = guestsObj.adults;
+                        }
+                        if (typeof guestsObj.children !== 'undefined') {
+                            childrenVal = guestsObj.children;
+                        }
+                    } catch (err) {
+                        // Fallback to defaults if parsing fails
+                    }
+                }
+
                 var formData = {
                     action: 'bys_generate_deep_link',
                     nonce: nonce,
                     checkin: $checkin.val(),
                     checkout: $checkout.val(),
-                    adults: $('#bys-adults').val(),
-                    children: $('#bys-children').val(),
+                    adults: adultsVal,
+                    children: childrenVal,
                     rooms: $('#bys-rooms').val(),
                     promo: $('#bys-promo').val()
                 };
