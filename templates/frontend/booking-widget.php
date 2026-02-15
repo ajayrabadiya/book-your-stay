@@ -263,7 +263,8 @@ $default_checkout = date('Y-m-d', strtotime('+3 days'));
                     data: formData,
                     success: function (response) {
                         if (response.success && response.data.link) {
-                            window.location.href = response.data.link;
+                            window.open(response.data.link, '_blank', 'noopener,noreferrer');
+                            $button.prop('disabled', false).text(originalText);
                         } else {
                             alert('<?php esc_attr_e('Error generating booking link. Please try again.', 'book-your-stay'); ?>');
                             $button.prop('disabled', false).text(originalText);
