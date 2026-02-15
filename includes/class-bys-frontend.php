@@ -16,6 +16,7 @@ class BYS_Frontend {
         add_shortcode('hotel_rooms', array($this, 'display_hotel_rooms'));
         add_shortcode('hotel_rooms_debug', array($this, 'display_hotel_rooms_debug'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_frontend_scripts'));
+        add_filter('script_loader_tag', array($this, 'defer_frontend_script'), 10, 3);
         add_action('wp_ajax_bys_generate_deep_link', array($this, 'ajax_generate_deep_link'));
         add_action('wp_ajax_nopriv_bys_generate_deep_link', array($this, 'ajax_generate_deep_link'));
         add_action('wp_footer', array($this, 'print_footer_scripts'), 999);
@@ -75,6 +76,16 @@ class BYS_Frontend {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('bys_booking_nonce')
         ));
+    }
+
+    /**
+     * Add defer to frontend script so it doesn't block page rendering
+     */
+    public function defer_frontend_script($tag, $handle, $src) {
+        if ('bys-frontend-script' !== $handle) {
+            return $tag;
+        }
+        return str_replace(' src', ' defer src', $tag);
     }
     
     /**

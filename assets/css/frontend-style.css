@@ -128,6 +128,7 @@
 
 .bys-booking-widget-wrapper .bys-booking-header.bys-header-toggle {
     cursor: pointer;
+    min-width: 250px;
 }
 
 .bys-booking-widget-wrapper .bys-booking-title {

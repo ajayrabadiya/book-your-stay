@@ -51,8 +51,7 @@
             this.$field = $field;
             this.$icon = $icon;
             
-            // Build calendar
-            this.render();
+            // Defer render until first open (faster initial load)
 
             // Single click handler on wrapper only: open/close this calendar (one place = one toggle, no double fire)
             $wrapper.on('click', function(e) {
@@ -153,74 +152,78 @@
             html += '<button type="button" class="bys-calendar-btn bys-calendar-confirm">Set Date</button>';
             html += '</div>';
             
+            if (this._navRafId != null) {
+                cancelAnimationFrame(this._navRafId);
+                this._navRafId = null;
+            }
             this.calendar.html(html);
-            
-            // Bind events
             this.bindEvents();
         },
         
         bindEvents: function() {
             var self = this;
 
-            // Navigate to previous/next month: use 1st of month to avoid date rollover (e.g. Jan 31 -> Feb = Mar 2)
+            // Navigate to previous/next month (1st of month to avoid date rollover). Coalesce rapid clicks into one render per frame so UI doesn't hang.
             function goMonth(direction) {
                 var y = self.currentDate.getFullYear();
                 var m = self.currentDate.getMonth();
-                if (direction === 'prev') {
-                    self.currentDate = new Date(y, m - 1, 1);
-                } else {
-                    self.currentDate = new Date(y, m + 1, 1);
+                self.currentDate = new Date(y, direction === 'prev' ? m - 1 : m + 1, 1);
+                if (self._navRafId != null) {
+                    cancelAnimationFrame(self._navRafId);
                 }
-                self.render();
+                self._navRafId = requestAnimationFrame(function() {
+                    self._navRafId = null;
+                    self.render();
+                });
             }
 
             // Month/Year selectors - use event delegation
-            this.calendar.off('change', '.bys-calendar-month-select, .bys-calendar-year-select')
-                .on('change', '.bys-calendar-month-select, .bys-calendar-year-select', function() {
-                    var month = parseInt(self.calendar.find('.bys-calendar-month-select').val());
-                    var year = parseInt(self.calendar.find('.bys-calendar-year-select').val());
+            this.calendar.off('change.bysCal', '.bys-calendar-month-select, .bys-calendar-year-select')
+                .on('change.bysCal', '.bys-calendar-month-select, .bys-calendar-year-select', function() {
+                    var month = parseInt(self.calendar.find('.bys-calendar-month-select').val(), 10);
+                    var year = parseInt(self.calendar.find('.bys-calendar-year-select').val(), 10);
                     self.currentDate = new Date(year, month, 1);
                     self.render();
                 });
-            
-            // Navigation buttons
-            this.calendar.off('click', '.bys-calendar-prev, .bys-calendar-next')
-                .on('click', '.bys-calendar-prev', function(e) {
-                    e.stopPropagation();
+
+            // Navigation buttons - delegated so they work after each render
+            this.calendar.off('click.bysCal', '.bys-calendar-prev, .bys-calendar-next')
+                .on('click.bysCal', '.bys-calendar-prev', function(e) {
                     e.preventDefault();
+                    e.stopPropagation();
                     goMonth('prev');
                 })
-                .on('click', '.bys-calendar-next', function(e) {
-                    e.stopPropagation();
+                .on('click.bysCal', '.bys-calendar-next', function(e) {
                     e.preventDefault();
+                    e.stopPropagation();
                     goMonth('next');
                 });
             
-            // Day selection - use event delegation to handle re-renders
-            this.calendar.off('click', '.bys-calendar-day').on('click', '.bys-calendar-day:not(.disabled)', function(e) {
-                e.stopPropagation();
-                e.preventDefault();
-                var dateStr = $(this).data('date');
-                if (dateStr) {
-                    self.selectedDate = new Date(dateStr);
-                    self.render();
-                }
-            });
-            
-            // Footer buttons - use event delegation
-            this.calendar.off('click', '.bys-calendar-cancel, .bys-calendar-confirm')
-                .on('click', '.bys-calendar-cancel', function(e) {
-                    e.stopPropagation();
+            // Day selection
+            this.calendar.off('click.bysCal', '.bys-calendar-day')
+                .on('click.bysCal', '.bys-calendar-day:not(.disabled)', function(e) {
                     e.preventDefault();
+                    e.stopPropagation();
+                    var dateStr = $(this).data('date');
+                    if (dateStr) {
+                        self.selectedDate = new Date(dateStr);
+                        self.render();
+                    }
+                });
+
+            // Footer buttons
+            this.calendar.off('click.bysCal', '.bys-calendar-cancel, .bys-calendar-confirm')
+                .on('click.bysCal', '.bys-calendar-cancel', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
                     self.close();
                 })
-                .on('click', '.bys-calendar-confirm', function(e) {
-                    e.stopPropagation();
+                .on('click.bysCal', '.bys-calendar-confirm', function(e) {
                     e.preventDefault();
+                    e.stopPropagation();
                     if (self.selectedDate) {
                         var dateStr = self.formatDate(self.selectedDate);
                         self.input.val(dateStr);
-                        // Trigger change event
                         self.input.trigger('change');
                         if (self.options.onSelect) {
                             self.options.onSelect(self.selectedDate, dateStr);
@@ -239,6 +242,10 @@
         },
         
         open: function() {
+            // Lazy render on first open (saves work on page load)
+            if (!this.calendar.find('.bys-calendar-header').length) {
+                this.render();
+            }
             // Close any other open calendar so only one is open at a time
             for (var i = 0; i < allCalendars.length; i++) {
                 if (allCalendars[i] !== this && allCalendars[i].isOpen) {
@@ -294,7 +301,7 @@
         }
     };
     
-    // Initialize calendars
+    // Lazy-initialize calendars on first click (avoids heavy work on page load)
     $(document).ready(function() {
         var $checkin = $('#bys-checkin');
         var $checkout = $('#bys-checkout');
@@ -305,60 +312,83 @@
         
         var today = new Date();
         today.setHours(0, 0, 0, 0);
-        var minDate = today;
         
-        // Initialize Check-In calendar
-        var checkinCalendar = new CustomCalendar($checkin[0], {
-            minDate: minDate,
-            defaultDate: $checkin.val() || today,
-            onSelect: function(date, dateStr) {
-                // Update checkout minimum date
-                var minCheckout = new Date(date);
+        function ensureCheckinCalendar() {
+            var cal = $checkin.data('calendar');
+            if (cal) return cal;
+            cal = new CustomCalendar($checkin[0], {
+                minDate: today,
+                defaultDate: $checkin.val() || today,
+                onSelect: function(date, dateStr) {
+                    var minCheckout = new Date(date);
                     minCheckout.setDate(minCheckout.getDate() + 1);
-                checkoutCalendar.setMinDate(minCheckout);
-                
-                // Auto-update checkout if needed
-                if (checkoutCalendar.selectedDate && checkoutCalendar.selectedDate <= date) {
-                    checkoutCalendar.setDate(minCheckout);
+                    var checkoutCal = $checkout.data('calendar');
+                    if (checkoutCal) {
+                        checkoutCal.setMinDate(minCheckout);
+                        if (checkoutCal.selectedDate && checkoutCal.selectedDate <= date) {
+                            checkoutCal.setDate(minCheckout);
+                        }
+                    }
                 }
-            }
-        });
+            });
+            $checkin.data('calendar', cal);
+            return cal;
+        }
         
-        // Initialize Check-Out calendar
-        var checkoutMinDate = new Date($checkin.val() || today);
-        checkoutMinDate.setDate(checkoutMinDate.getDate() + 1);
-        
-        var checkoutCalendar = new CustomCalendar($checkout[0], {
-            minDate: checkoutMinDate,
-            defaultDate: $checkout.val() || (function() {
+        function ensureCheckoutCalendar() {
+            var cal = $checkout.data('calendar');
+            if (cal) return cal;
+            ensureCheckinCalendar();
+            var checkoutMin = new Date($checkin.val() || today);
+            checkoutMin.setDate(checkoutMin.getDate() + 1);
+            var defaultCheckout = $checkout.val() || (function() {
                 var d = new Date($checkin.val() || today);
                 d.setDate(d.getDate() + 2);
                 return d;
-            })(),
-            onSelect: function(date, dateStr) {
-                // Ensure checkout is after checkin
-                var checkinDate = new Date($checkin.val());
-                if (date <= checkinDate) {
-                    var minCheckout = new Date(checkinDate);
-                    minCheckout.setDate(minCheckout.getDate() + 1);
-                    checkoutCalendar.setDate(minCheckout);
+            })();
+            cal = new CustomCalendar($checkout[0], {
+                minDate: checkoutMin,
+                defaultDate: defaultCheckout,
+                onSelect: function(date, dateStr) {
+                    var checkinDate = new Date($checkin.val());
+                    if (date <= checkinDate) {
+                        var minCheckout = new Date(checkinDate);
+                        minCheckout.setDate(minCheckout.getDate() + 1);
+                        cal.setDate(minCheckout);
+                    }
                 }
+            });
+            $checkout.data('calendar', cal);
+            return cal;
+        }
+        
+        // Open calendar when user clicks a date field (lazy init on first click)
+        $(document).on('click', '.bys-booking-widget-wrapper .bys-date-picker-wrapper', function(e) {
+            var $wrapper = $(this);
+            var $input = $wrapper.find('.bys-date-input');
+            if ($input.length === 0) return;
+            var id = $input.attr('id');
+            var cal;
+            if (id === 'bys-checkin') {
+                cal = ensureCheckinCalendar();
+            } else if (id === 'bys-checkout') {
+                cal = ensureCheckoutCalendar();
+            }
+            if (cal && !cal.isOpen) {
+                cal.open();
             }
         });
         
-        // Store calendar instances
-        $checkin.data('calendar', checkinCalendar);
-        $checkout.data('calendar', checkoutCalendar);
-        
-        // Update checkout when checkin changes
+        // Update checkout min/date when checkin changes (uses lazy calendar when present)
         $checkin.on('change', function() {
+            var checkoutCal = $checkout.data('calendar');
+            if (!checkoutCal) return;
             var checkinDate = new Date($(this).val());
             var minCheckout = new Date(checkinDate);
             minCheckout.setDate(minCheckout.getDate() + 1);
-            checkoutCalendar.setMinDate(minCheckout);
-            
-            if (checkoutCalendar.selectedDate && checkoutCalendar.selectedDate <= checkinDate) {
-                checkoutCalendar.setDate(minCheckout);
+            checkoutCal.setMinDate(minCheckout);
+            if (checkoutCal.selectedDate && checkoutCal.selectedDate <= checkinDate) {
+                checkoutCal.setDate(minCheckout);
             }
         });
     });
