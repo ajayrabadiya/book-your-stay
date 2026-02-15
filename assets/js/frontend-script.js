@@ -137,10 +137,10 @@
                         '" data-date="' + this.formatDate(date) + '">' + day + '</div>';
             }
             
-            // Next month days
-            var totalCells = 42; // 6 weeks * 7 days
-            var cellsUsed = firstDay + daysInMonth;
-            var nextMonthDays = totalCells - cellsUsed;
+            // Next month days: only enough to complete the last row (so only one month is visually dominant)
+            var minCellsForMonth = firstDay + daysInMonth;
+            var totalCells = Math.ceil(minCellsForMonth / 7) * 7;
+            var nextMonthDays = Math.max(0, totalCells - minCellsForMonth);
             for (var day = 1; day <= nextMonthDays; day++) {
                 var date = new Date(year, month + 1, day);
                 html += '<div class="bys-calendar-day next-month" data-date="' + this.formatDate(date) + '">' + day + '</div>';
@@ -161,30 +161,19 @@
         
         bindEvents: function() {
             var self = this;
-            var navThrottleTimer = null;
-            var navPendingRender = false;
 
-            // Apply month change on each click; throttle re-renders so rapid clicks don't hang (first click renders immediately)
-            function doNavAndScheduleRender(direction) {
+            // Navigate to previous/next month: use 1st of month to avoid date rollover (e.g. Jan 31 -> Feb = Mar 2)
+            function goMonth(direction) {
+                var y = self.currentDate.getFullYear();
+                var m = self.currentDate.getMonth();
                 if (direction === 'prev') {
-                    self.currentDate.setMonth(self.currentDate.getMonth() - 1);
+                    self.currentDate = new Date(y, m - 1, 1);
                 } else {
-                    self.currentDate.setMonth(self.currentDate.getMonth() + 1);
-                }
-                if (navThrottleTimer) {
-                    navPendingRender = true;
-                    return;
+                    self.currentDate = new Date(y, m + 1, 1);
                 }
                 self.render();
-                navThrottleTimer = setTimeout(function() {
-                    navThrottleTimer = null;
-                    if (navPendingRender) {
-                        navPendingRender = false;
-                        self.render();
-                    }
-                }, 120);
             }
-            
+
             // Month/Year selectors - use event delegation
             this.calendar.off('change', '.bys-calendar-month-select, .bys-calendar-year-select')
                 .on('change', '.bys-calendar-month-select, .bys-calendar-year-select', function() {
@@ -194,17 +183,17 @@
                     self.render();
                 });
             
-            // Navigation buttons - throttle re-render so multiple clicks don't hang the screen
+            // Navigation buttons
             this.calendar.off('click', '.bys-calendar-prev, .bys-calendar-next')
                 .on('click', '.bys-calendar-prev', function(e) {
                     e.stopPropagation();
                     e.preventDefault();
-                    doNavAndScheduleRender('prev');
+                    goMonth('prev');
                 })
                 .on('click', '.bys-calendar-next', function(e) {
                     e.stopPropagation();
                     e.preventDefault();
-                    doNavAndScheduleRender('next');
+                    goMonth('next');
                 });
             
             // Day selection - use event delegation to handle re-renders

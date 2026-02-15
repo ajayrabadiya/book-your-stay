@@ -37,7 +37,7 @@ $default_checkout = date('Y-m-d', strtotime('+3 days'));
         </span>
     </button>
     <div class="bys-booking-widget">
-        <div class="bys-booking-header">
+        <div class="bys-booking-header bys-header-toggle" role="button" tabindex="0" aria-expanded="true" aria-controls="bys-booking-form">
             <h3 class="bys-booking-title">
                 <span class="bys-booking-icon">
                     <svg width="25" height="26" viewBox="0 0 25 26" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -415,6 +415,24 @@ $default_checkout = date('Y-m-d', strtotime('+3 days'));
                 let roomsText = val + " " + (val === 1 ? "<?php echo esc_js(__('Room', 'book-your-stay')); ?>" : "<?php echo esc_js(__('Rooms', 'book-your-stay')); ?>");
                 $customSelect.find(".rooms-text").text(roomsText);
                 $($customSelect.data("target")).val(val);
+            }
+        });
+
+        // Header click: toggle booking form
+        function toggleBookingForm() {
+            var $header = $(this);
+            var $form = $header.next(".bys-booking-form");
+            $form.slideToggle(300);
+            $header.attr("aria-expanded", $form.is(":visible"));
+        }
+        $(".bys-booking-widget .bys-header-toggle").on("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleBookingForm.call(this);
+        }).on("keydown", function (e) {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleBookingForm.call(this);
             }
         });
 
