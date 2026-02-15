@@ -286,253 +286,227 @@
     outline: none;
 }
 
-/* Custom Calendar Styles */
-.bys-booking-widget-wrapper .bys-custom-calendar {
-    display: none;
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 0;
-    width: 320px;
-    min-width: 320px;
-    max-width: 320px;
-    background: #F5F8F9;
+/* Calendar opens in position below the date field */
+.bys-booking-widget-wrapper .bys-date-field .datepicker.dropdown-menu {
+    position: absolute !important;
+    top: 100% !important;
+    left: unset !important;
+    right: 0 !important;
+    margin-top: 8px !important;
+}
+
+/* ============================================
+   Bootstrap Datepicker - clean design overwrite
+   (Bootstrap-based, month/year as dropdowns)
+   ============================================ */
+.datepicker.dropdown-menu {
+    z-index: 9999 !important;
+    min-width: 300px;
+    padding: 16px 12px;
     border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    border: 1px solid #e0e0e0;
     font-family: "Open Sans", sans-serif;
-    padding: 20px 16px 16px 16px;
-    z-index: 9999;
-    box-sizing: border-box;
-    animation: calendarFadeIn 0.3s ease-in-out;
 }
 
-.bys-booking-widget-wrapper .bys-custom-calendar.open {
-    display: block;
-}
-
-@keyframes calendarFadeIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
+@media (max-width: 575px) {
+    .datepicker.dropdown-menu {
+        width: 100%;
     }
 }
 
-/* Calendar Header */
-.bys-booking-widget-wrapper .bys-calendar-header {
-    margin-bottom: 16px;
+.datepicker table tr td.today {
+    background-color: #1c1e1f;
+    color: #ffffff;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid #E0E0E0;
+/* Header: arrows + month/year dropdowns */
+.datepicker thead tr:first-child th {
+    border: none !important;
+    padding: 0 0 12px 0 !important;
+    vertical-align: middle !important;
+}
+
+.datepicker thead tr:first-child {
+    border-bottom: 0;
     padding-bottom: 12px;
+    margin-bottom: 8px;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-prev,
-.bys-booking-widget-wrapper .bys-calendar-next {
-    background: transparent;
-    border: none;
+.datepicker .prev,
+.datepicker .next {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    color: #D3AA74 !important;
+    font-size: 18px !important;
+    line-height: 28px !important;
     cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     border-radius: 4px;
-    transition: all 0.2s ease;
-    width: 24px;
-    height: 24px;
+    transition: background 0.2s, color 0.2s;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-prev:hover,
-.bys-booking-widget-wrapper .bys-calendar-next:hover {
-    background: rgba(211, 170, 116, 0.1);
-    transform: scale(1.1);
+.datepicker .prev:hover,
+.datepicker .next:hover {
+    background: rgba(211, 170, 116, 0.15) !important;
+    color: #b8925f !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-prev svg,
-.bys-booking-widget-wrapper .bys-calendar-next svg {
-    width: 24px;
-    height: 24px;
+.datepicker .datepicker-switch {
+    padding: 0 8px !important;
+    text-align: center !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-month-year {
+/* Month & year dropdown container */
+.bys-datepicker-month-year {
     display: flex;
     align-items: center;
-    gap: 20px;
-    flex: 1;
     justify-content: center;
+    gap: 16px;
+    flex: 1;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-month-select,
-.bys-booking-widget-wrapper .bys-calendar-year-select {
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid #E0E0E0;
-    color: #062943;
-    font-size: 14px;
-    font-weight: 500;
-    font-family: "Open Sans", sans-serif;
-    padding: 0 20px 4px 10px;
+/* Bootstrap .form-control overwrite for dropdowns */
+.datepicker .bys-datepicker-month-select,
+.datepicker .bys-datepicker-year-select {
+    display: inline-block !important;
+    width: auto !important;
+    min-width: 100px;
+    max-width: 120px;
+    height: auto !important;
+    padding: 4px 24px 6px 8px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #062943 !important;
+    background-color: transparent !important;
+    border: none !important;
+    border-bottom: 1px solid #e0e0e0 !important;
+    border-radius: 0 !important;
     cursor: pointer;
-    position: relative;
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-    outline: none;
-    border-radius: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23D3AA74' d='M0 0l5 6 5-6H0z'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 4px center !important;
+    background-size: 10px 6px !important;
+    transition: border-color 0.2s;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-year-select {
-    border-bottom: 2px solid #062943;
+.datepicker .bys-datepicker-month-select:hover,
+.datepicker .bys-datepicker-year-select:hover {
+    border-bottom-color: #D3AA74 !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-month-select:hover,
-.bys-booking-widget-wrapper .bys-calendar-year-select:hover {
-    border-bottom-color: #D3AA74;
+.datepicker .bys-datepicker-year-select {
+    border-bottom-width: 2px !important;
+    border-bottom-color: #062943 !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-month-select {
-    position: relative;
+.datepicker .bys-datepicker-year-select:hover {
+    border-bottom-color: #D3AA74 !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-month-select::after,
-.bys-booking-widget-wrapper .bys-calendar-year-select::after {
-    content: '';
-    position: absolute;
-    right: 5px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 0;
-    height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #D3AA74;
-    pointer-events: none;
-}
-
-/* Weekdays */
-.bys-booking-widget-wrapper .bys-calendar-weekdays {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-    border-bottom: 1px solid #E0E0E0;
-    padding-bottom: 10px;
-    margin-bottom: 10px;
-}
-
-.bys-booking-widget-wrapper .bys-calendar-weekday {
+/* Weekday row */
+.datepicker thead tr:nth-child(2) th {
     color: #676B6D;
     font-size: 11px;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    text-align: center;
-    padding: 0 2px;
+    padding: 8px 4px !important;
+    border: none !important;
 }
 
-/* Calendar Days */
-.bys-booking-widget-wrapper .bys-calendar-days {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-    padding-top: 6px;
+/* Day cells - all number td 34px x 34px */
+.datepicker table tr td {
+    padding: 0 !important;
+    border: none !important;
+    width: 46px;
+    height: 46px;
+    min-width: 46px;
+    max-width: 46px;
+    /* width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    min-height: 34px !important; */
+    box-sizing: border-box !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day {
-    height: 34px;
-    line-height: 34px;
-    width: 100%;
+@media (max-width: 575px) { 
+    .datepicker table tr td {
+        width: 35px;
+        height: 35px;
+        min-width: 35px;
+        min-height: 35px;
+    }
+}
+
+.datepicker table tr td.day {
+    font-size: 13px;
     color: #062943;
     border-radius: 4px;
-    font-size: 13px;
-    font-weight: 400;
-    border: 1px solid transparent;
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    box-sizing: border-box;
-    aspect-ratio: 1;
-    cursor: pointer;
-    text-align: center;
+    transition: background 0.2s;
+    text-align: center !important;
+    vertical-align: middle !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.prev-month,
-.bys-booking-widget-wrapper .bys-calendar-day.next-month {
-    color: #B0B0B0;
-    opacity: 0.35;
+.datepicker table tr td.day:hover {
+    background: #e8e8e8 !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.disabled {
-    color: #B0B0B0;
-    opacity: 0.35;
-    cursor: not-allowed;
-}
-
-.bys-booking-widget-wrapper .bys-calendar-day:nth-child(7n) {
-    color: #B0B0B0;
+.datepicker table tr td.old,
+.datepicker table tr td.new {
+    color: #b0b0b0 !important;
     opacity: 0.5;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day:not(.disabled):hover {
-    background: #E8E8E8;
-    border-color: transparent;
+.datepicker table tr td.disabled,
+.datepicker table tr td.disabled:hover {
+    color: #b0b0b0 !important;
+    opacity: 0.5;
+    cursor: not-allowed !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.selected {
-    background: #F5E6D3;
-    border: 1px solid #D3AA74;
-    color: #062943;
+/* Today's date: bg #1c1e1f, color #ffffff */
+.datepicker table tr td.today {
+    background: #1c1e1f !important;
+    color: #ffffff !important;
     font-weight: 500;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.selected:hover {
-    background: #F0D9B8;
-    border: 1px solid #D3AA74;
+.datepicker table tr td.today:hover {
+    background: #2a2d2e !important;
+    color: #ffffff !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.selected:nth-child(7n) {
-    color: #062943;
-    opacity: 1;
-    background: #F5E6D3;
+.datepicker table tr td.active,
+.datepicker table tr td.active:hover {
+    background: #F5E6D3 !important;
+    border: 1px solid #D3AA74 !important;
+    color: #062943 !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.today {
-    border: 1px solid transparent;
-    color: #062943;
-    font-weight: 400;
-    background: transparent;
+.datepicker table tr td.today.active {
+    background: #F5E6D3 !important;
+    border: 1px solid #D3AA74 !important;
+    color: #062943 !important;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-day.today:hover {
-    background: #E8E8E8;
-    border: 1px solid transparent;
-}
-
-.bys-booking-widget-wrapper .bys-calendar-day.today.selected {
-    background: #F5E6D3;
-    border: 1px solid #D3AA74;
-    font-weight: 500;
-}
-
-/* Calendar Footer */
-.bys-booking-widget-wrapper .bys-calendar-footer {
+/* Cancel & Set Date footer buttons */
+.datepicker .bys-datepicker-footer {
     display: flex;
     justify-content: space-between;
-    padding: 14px 0 0 0;
-    margin-top: 14px;
-    border-top: 1px solid #E0E0E0;
     gap: 10px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid #e0e0e0;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-btn {
+.datepicker .bys-datepicker-footer .bys-calendar-btn {
     flex: 1;
     padding: 10px 18px;
     border: none;
@@ -541,22 +515,27 @@
     font-weight: 500;
     cursor: pointer;
     font-family: "Open Sans", sans-serif;
-    transition: all 0.2s ease;
-    text-transform: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: background 0.2s, box-shadow 0.2s;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-cancel,
-.bys-booking-widget-wrapper .bys-calendar-confirm {
-    background: #1E3A5F;
+.datepicker .bys-datepicker-footer .bys-calendar-cancel {
+    background: #34495e;
     color: #fff;
 }
 
-.bys-booking-widget-wrapper .bys-calendar-cancel:hover,
-.bys-booking-widget-wrapper .bys-calendar-confirm:hover {
-    background: #152A47;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-    transform: translateY(-1px);
+.datepicker .bys-datepicker-footer .bys-calendar-cancel:hover {
+    background: #2c3e50;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.datepicker .bys-datepicker-footer .bys-calendar-confirm {
+    background: #4a6278;
+    color: #fff;
+}
+
+.datepicker .bys-datepicker-footer .bys-calendar-confirm:hover {
+    background: #3d5266;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .bys-booking-widget-wrapper .bys-booking-input:focus,
@@ -759,12 +738,6 @@
     }
 }
 
-@media (max-width: 1023px) {
-    .bys-booking-widget-wrapper .bys-custom-calendar {
-        top: auto;
-        left: -18px;
-    }
-}
 @media (max-width: 767px) {
     .hero__booking-content .elementor-heading-title.elementor-size-default br {
         display: none !important;
@@ -794,16 +767,6 @@
     .bys-booking-widget-wrapper .bys-mobile-toggle-btn[aria-expanded="true"] {
         border-radius: 4px 4px 0 0;
     }
-    /* .bys-booking-widget-wrapper .bys-date-field:nth-child(2) .bys-custom-calendar {
-        top: -190px;
-        left: 50%;
-        transform: translateX(-50%);
-    }
-    .bys-booking-widget-wrapper .open {
-        top: -123px;
-        left: 50%;
-        transform: translateX(-50%);
-    } */
 }
 
 /* Responsive Design */

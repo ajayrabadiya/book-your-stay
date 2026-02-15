@@ -52,7 +52,7 @@ $default_checkout = date('Y-m-d', strtotime('+3 days'));
 
         <form class="bys-booking-form" id="bys-booking-form">
             <div class="bys-booking-fields">
-                <div class="bys-booking-field bys-date-field">
+                <div class="bys-booking-field bys-date-field" id="bys-date-field-checkin">
                     <label for="bys-checkin"><?php _e('Check-In', 'book-your-stay'); ?></label>
                     <div class="bys-date-picker-wrapper">
                         <input type="text" id="bys-checkin" name="checkin" class="bys-date-input"
@@ -69,7 +69,7 @@ $default_checkout = date('Y-m-d', strtotime('+3 days'));
                     </div>
                 </div>
 
-                <div class="bys-booking-field bys-date-field">
+                <div class="bys-booking-field bys-date-field" id="bys-date-field-checkout">
                     <label for="bys-checkout"><?php _e('Check-Out', 'book-your-stay'); ?></label>
                     <div class="bys-date-picker-wrapper">
                         <input type="text" id="bys-checkout" name="checkout" class="bys-date-input"
